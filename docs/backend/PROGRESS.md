@@ -52,7 +52,7 @@
 
 - `python3 -m compileall -q scripts server` 通过。
 - `python3 -m pytest server/api/settings/tests server/tests/test_openapi_contract.py server/tests/test_openapi_secret_scan.py` 通过，35 passed。
-- `python3 -m pytest` 通过，109 passed。
+- `python3 -m pytest` 通过，113 passed。
 - `python3 scripts/backend_openapi_check.py` 通过，覆盖 15 paths、28 operations。
 - `python3 scripts/backend_route_coverage.py` 通过，15 个 `/api` route 全覆盖。
 - `python3 scripts/backend_openapi_secret_scan.py` 通过，0 findings。

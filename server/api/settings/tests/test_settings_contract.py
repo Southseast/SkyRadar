@@ -6,6 +6,7 @@
 
 import hashlib
 import signal
+from urllib.parse import parse_qs, urlparse
 
 
 class FakeCursor:
@@ -646,6 +647,55 @@ def test_webhook_post_contract_saves_valid_url_without_test_call(client, monkeyp
     assert captured["upsert"] is True
     assert captured["count_filters"] == {"webhook": webhook_url}
     assert captured["requests_post_calls"] == 0
+
+
+def test_webhook_post_contract_tests_dingtalk_provider(client, monkeypatch):
+    from integrations import dingtalk as dingtalk_integration
+
+    captured = {}
+    webhook_url = "https://oapi.dingtalk.com/robot/send?access_token=example"
+
+    class FakeResponse:
+        ok = True
+
+        def json(self):
+            return {"errmsg": "ok"}
+
+    def fake_requests_post(url, json, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(dingtalk_integration.requests, "post", fake_requests_post)
+
+    response = client.post(
+        "/api/setting/webhook",
+        json={
+            "provider": "dingtalk",
+            "webhook_url": webhook_url,
+            "secret": "SEC-example",
+            "domain": "https://skyradar.example.com",
+            "enabled": True,
+            "test": True,
+        },
+    )
+
+    parsed_url = urlparse(captured["url"])
+    query = parse_qs(parsed_url.query)
+
+    assert response.status_code == 200
+    assert response.get_json() == {"status": 201, "msg": "已发送，请前往目标群查看", "result": []}
+    assert parsed_url.scheme == "https"
+    assert parsed_url.netloc == "oapi.dingtalk.com"
+    assert parsed_url.path == "/robot/send"
+    assert query["access_token"] == ["example"]
+    assert query["timestamp"]
+    assert query["sign"]
+    assert captured["json"]["msgtype"] == "markdown"
+    assert captured["json"]["markdown"]["title"] == "SkyRadar 通知测试"
+    assert "钉钉 webhook" in captured["json"]["markdown"]["text"]
+    assert captured["timeout"] == 10
 
 
 def test_webhook_post_contract_tests_feishu_provider(client, monkeypatch):

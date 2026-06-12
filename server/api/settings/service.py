@@ -10,6 +10,7 @@ import signal
 import time
 from urllib.parse import urlparse
 
+from api.notifications import messages as notification_messages
 from api.settings import repository as setting_repository
 from integrations import dingtalk as dingtalk_integration
 from integrations import feishu as feishu_integration
@@ -194,16 +195,16 @@ def _validate_webhook(provider, webhook):
     return None
 
 
-def _build_webhook_test_payload(provider, domain, secret):
+def _build_webhook_test_payload(provider, domain):
     if provider == "feishu":
-        return feishu_integration.build_feishu_test_payload(domain, secret=secret)
-    return dingtalk_integration.build_dingtalk_test_payload(domain)
+        return notification_messages.build_feishu_test_payload(domain)
+    return notification_messages.build_dingtalk_test_payload(domain)
 
 
 def _post_webhook(provider, webhook, secret, content):
     if provider == "feishu":
-        return feishu_integration.post_feishu_text(webhook, secret, content, timeout=10)
-    return dingtalk_integration.post_dingtalk_markdown(webhook, secret, content, timeout=10)
+        return feishu_integration.post_feishu_webhook(webhook, secret, content, timeout=10)
+    return dingtalk_integration.post_dingtalk_webhook(webhook, secret, content, timeout=10)
 
 
 def _webhook_test_succeeded(provider, response):
@@ -241,7 +242,7 @@ def post_webhook(params):
         "test": params.get("test", False),
     }
     if args.get("test"):
-        test_content = _build_webhook_test_payload(provider, args.get("domain"), secret)
+        test_content = _build_webhook_test_payload(provider, args.get("domain"))
         webhook_response = _post_webhook(provider, webhook, secret, test_content)
         if webhook_response.ok:
             if _webhook_test_succeeded(provider, webhook_response):

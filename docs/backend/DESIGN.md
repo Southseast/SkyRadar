@@ -135,8 +135,9 @@ server/
 - Requests 调 DingTalk/Feishu webhook 必须设置合理超时。
 - SMTP password 只能用于发送流程，不进入 response、OpenAPI 示例、日志或测试快照。
 - 通知通道按 provider 命名为 `integrations/mail.py`、`integrations/dingtalk.py`、`integrations/feishu.py`；不要新增 `notice.py`、`webhook.py` 这类泛名模块。
-- provider 模块公开函数使用 provider 前缀和动作前缀，例如 `send_smtp_notice()`、`build_dingtalk_search_notice_payload()`、`build_feishu_search_notice_payload()`、`prepare_dingtalk_webhook_url()`、`post_dingtalk_markdown()`。
-- `api/notifications` 只负责通知业务编排，不直接构造 provider 签名、HTTP 请求或 SMTP message。
+- provider integration 负责各自外部通道的 validate、mask、sign 和 post 边界，例如 `send_smtp_notice()`、`prepare_dingtalk_webhook_url()`、`post_dingtalk_webhook()`、`post_feishu_webhook()`；不要恢复旧的 `post_dingtalk_markdown()` 或 `post_feishu_text()`。
+- 通知消息 payload builder 位于 `api.notifications.messages`，例如 `build_dingtalk_search_notice_payload()`、`build_feishu_search_notice_payload()`、`build_dingtalk_test_payload()`、`build_feishu_test_payload()`；不要把 `build_*_search_notice_payload()` 归入 provider integration 职责。
+- `api/notifications` 负责通知业务编排和选择 message builder，不直接构造 provider 签名、HTTP 请求或 SMTP message。
 - 内部函数命名采用动宾结构并保留领域上下文，例如 `search_github_code()`、`schedule_github_search()`、`send_webhook_notice()`；避免 `check()`、`new_github()`、`webhook_notice()`、`send_mail()` 这类泛名。
 - 基础设施能力进入 `core`，外部系统能力进入 `integrations`，不要用 `utils` 作为无法归属代码的默认位置。
 

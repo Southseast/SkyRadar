@@ -9,9 +9,9 @@ import hashlib
 import hmac
 
 from integrations.feishu import (
-    build_feishu_text_payload,
     is_feishu_webhook,
     mask_feishu_webhook_url,
+    prepare_feishu_payload,
     sign_feishu_payload,
 )
 
@@ -39,8 +39,12 @@ def test_sign_feishu_payload_matches_documented_hmac_sha256():
     assert sign == expected
 
 
-def test_build_feishu_text_payload_adds_signature_when_secret_is_set():
-    payload = build_feishu_text_payload("request example", secret="demo", timestamp=1599360473)
+def test_prepare_feishu_payload_adds_signature_fields():
+    payload = prepare_feishu_payload(
+        {"msg_type": "text", "content": {"text": "request example"}},
+        "demo",
+        timestamp=1599360473,
+    )
 
     assert payload["msg_type"] == "text"
     assert payload["content"] == {"text": "request example"}

@@ -1,6 +1,6 @@
 # SkyRadar
 
-SkyRadar 是一个面向 GitHub Code Search 的代码泄露发现系统。它按规则周期性检索 GitHub 代码内容，记录命中结果，提供复核界面，并通过邮件或钉钉 webhook 发送通知。
+SkyRadar 是一个面向 GitHub Code Search 的代码泄露发现系统。它按规则周期性检索 GitHub 代码内容，记录命中结果，提供复核界面，并通过邮件、钉钉 webhook 或飞书 webhook 发送通知。
 
 - 产品名：SkyRadar
 - 后端：FastAPI/ASGI + Gunicorn/Uvicorn + MongoDB + Redis + Huey
@@ -20,6 +20,7 @@ SkyRadar 是一个面向 GitHub Code Search 的代码泄露发现系统。它按
 - [部署](#部署)
 - [安全注意](#安全注意)
 - [文档索引](#文档索引)
+- [Reference](#reference)
 
 ## 能力边界
 
@@ -29,8 +30,8 @@ SkyRadar 当前聚焦 GitHub Code Search 主线：
 - 支持多 GitHub 账号/PAT 配置和搜索配额展示。
 - 展示泄露结果、趋势统计、标签统计、详情代码片段和受影响资产。
 - 支持结果状态处理：确认、误报、忽略、备注。
-- 支持查询规则、任务周期、黑名单、通知邮箱、SMTP、钉钉 webhook 配置。
-- 支持邮件和钉钉 webhook 通知。
+- 支持查询规则、任务周期、黑名单、通知邮箱、SMTP、钉钉 webhook 和飞书 webhook 配置。
+- 支持邮件、钉钉 webhook 和飞书 webhook 通知。
 
 不在当前主线内的能力：
 
@@ -64,7 +65,7 @@ flowchart LR
     api --> mongo[(MongoDB)]
     api --> redis[(Redis)]
     api --> github[GitHub API]
-    api --> notify[Mail / DingTalk]
+    api --> notify[Mail / DingTalk / Feishu]
     worker[Huey worker] --> redis
     worker --> mongo
     worker --> github
@@ -181,9 +182,25 @@ GitHub PAT 建议使用 Fine-grained PAT：
 
 ```json
 {
-  "webhook": "https://oapi.dingtalk.com/robot/send?access_token=xxx",
+  "provider": "dingtalk",
+  "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=<dingtalk-access-token>",
+  "secret": "<dingtalk-signing-secret>",
   "domain": "https://your-skyradar.example",
-  "enabled": true
+  "enabled": true,
+  "test": false
+}
+```
+
+飞书 webhook 示例：
+
+```json
+{
+  "provider": "feishu",
+  "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/<feishu-hook-id>",
+  "secret": "<feishu-signing-secret>",
+  "domain": "https://your-skyradar.example",
+  "enabled": true,
+  "test": false
 }
 ```
 
@@ -322,6 +339,10 @@ docker run -d \
 - `docs/frontend/RISKS.md`：风险
 - `docs/frontend/DECISIONS.md`：ADR
 - `docs/frontend/REFERENCES.md`：参考资料
+
+## Reference
+
+- [0xbug/Hawkeye](https://github.com/0xbug/Hawkeye) - GitHub code leak monitoring project that inspired SkyRadar.
 
 ## 许可证
 
