@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #1f2328;
+  --card: #ffffff;
+  --card-foreground: #1f2328;
+  --popover: #ffffff;
+  --popover-foreground: #1f2328;
+  --primary: #1f2328;
+  --primary-foreground: #ffffff;
+  --secondary: #f6f8fa;
+  --secondary-foreground: #1f2328;
+  --muted: #f6f8fa;
+  --muted-foreground: #59636e;
+  --accent: #ddf4ff;
+  --accent-foreground: #1f2328;
+  --destructive: #cf222e;
+  --border: #d1d9e0;
+  --input: #d1d9e0;
+  --ring: #0969da;
+  --surface: #ffffff;
+  --surface-subtle: #f6f8fa;
+  --divider: #d1d9e0;
+  --text-primary: #1f2328;
+  --text-secondary: #59636e;
+  --text-muted: #6e7781;
+  --text-inverse: #ffffff;
+  --risk: #cf222e;
+  --risk-bg: #ffebe9;
+  --warning: #bf8700;
+  --warning-bg: #fff8c5;
+  --safe: #1a7f37;
+  --safe-bg: #dafbe1;
+  --info: #0969da;
+  --info-bg: #ddf4ff;
+  --hover-surface: #818b981a;
+  --selected-surface: #818b9826;
+  --chart-1: #cf222e;
+  --chart-2: #bf8700;
+  --chart-3: #1a7f37;
+  --chart-4: #0969da;
+  --chart-5: #656d76;
+  --radius: 0.375rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1f2328;
+  --sidebar-primary: #1f2328;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #818b9826;
+  --sidebar-accent-foreground: #1f2328;
+  --sidebar-border: #d1d9e0;
+  --sidebar-ring: #0969da;
+
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--foreground);
+  background: var(--background);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@theme inline {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-divider: var(--divider);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-inverse: var(--text-inverse);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-risk: var(--risk);
+  --color-risk-bg: var(--risk-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-safe: var(--safe);
+  --color-safe-bg: var(--safe-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-hover-surface: var(--hover-surface);
+  --color-selected-surface: var(--selected-surface);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--background);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

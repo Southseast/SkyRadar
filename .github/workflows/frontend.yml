@@ -1,0 +1,65 @@
+name: Frontend
+
+on:
+  pull_request:
+    paths:
+      - "client/**"
+      - "docs/frontend/**"
+      - "AGENTS.md"
+      - ".github/workflows/frontend.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "client/**"
+      - "docs/frontend/**"
+      - "AGENTS.md"
+      - ".github/workflows/frontend.yml"
+
+jobs:
+  client:
+    name: client check
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run frontend checks
+        run: npm run check
+
+  docs-required:
+    name: frontend docs required
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check frontend docs exist
+        run: |
+          test -f AGENTS.md
+          test -f docs/frontend/PLAN.md
+          test -f docs/frontend/PROGRESS.md
+          test -f docs/frontend/DECISIONS.md
+          test -f docs/frontend/DESIGN.md
+          test -f docs/frontend/IMPLEMENTATION_GUIDE.md
+          test -f docs/frontend/CHECKLIST.md
+          test -f docs/frontend/TESTING.md
+          test -f docs/frontend/RISKS.md
+          test -f docs/frontend/REFERENCES.md

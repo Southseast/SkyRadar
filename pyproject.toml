@@ -1,0 +1,30 @@
+[project]
+name = "skyradar"
+version = "0.1.0"
+description = "GitHub code discovery and leak monitoring system."
+readme = "README.MD"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.pytest.ini_options]
+testpaths = ["server/api", "server/core", "server/workers", "server/tests"]
+python_files = ["test_*.py"]
+pythonpath = [".", "server"]
+
+[tool.skyradar.commands]
+backend-test = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt pytest"
+backend-openapi-check = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_openapi_check.py"
+backend-openapi-secret-scan = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_openapi_secret_scan.py"
+backend-route-coverage = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_route_coverage.py"
+backend-architecture-guard = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_architecture_guard.py"
+backend-http-smoke = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_http_smoke.py"
+backend-github-pat-smoke = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_github_pat_smoke.py"
+backend-worker-smoke = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_worker_smoke.py"
+backend-schemathesis-smoke = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_schemathesis_smoke.py"
+backend-redis-worker-smoke = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_redis_worker_smoke.py"
+backend-mongo8-smoke = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_mongo8_smoke.py"
+backend-docker-build-smoke = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_docker_build_smoke.py"
+backend-compose-smoke = "uv run --no-project --python 3.13 --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_compose_smoke.py"
+frontend-camoufox-fetch = "uv run --no-project --with camoufox==0.4.11 python -m camoufox fetch"
+frontend-camoufox-smoke = "uv run --no-project --with camoufox==0.4.11 python scripts/frontend_camoufox_smoke.py"
+frontend-release-gate-smoke = "uv run --no-project --with camoufox==0.4.11 python scripts/frontend_release_gate_smoke.py"

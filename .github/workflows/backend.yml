@@ -1,0 +1,105 @@
+name: Backend
+
+on:
+  pull_request:
+    paths:
+      - "server/**"
+      - "scripts/**"
+      - "deploy/**"
+      - "docs/api/**"
+      - "docs/backend/**"
+      - "Dockerfile"
+      - "compose.yml"
+      - "docker-entrypoint.sh"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/backend.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "server/**"
+      - "scripts/**"
+      - "deploy/**"
+      - "docs/api/**"
+      - "docs/backend/**"
+      - "Dockerfile"
+      - "compose.yml"
+      - "docker-entrypoint.sh"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/backend.yml"
+  workflow_dispatch:
+
+jobs:
+  backend-contract:
+    name: backend contract checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            deploy/pyenv/requirements.txt
+            deploy/pyenv/requirements-dev.txt
+            uv.lock
+
+      - name: Run pytest
+        run: uv run --no-project --with-requirements deploy/pyenv/requirements-dev.txt pytest
+
+      - name: Compile backend scripts
+        run: uv run --no-project --with-requirements deploy/pyenv/requirements-dev.txt python -m compileall -q server scripts
+
+      - name: Check OpenAPI contract
+        run: uv run --no-project --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_openapi_check.py
+
+      - name: Scan OpenAPI examples for secrets
+        run: uv run --no-project --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_openapi_secret_scan.py
+
+      - name: Check route coverage
+        run: uv run --no-project --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_route_coverage.py
+
+      - name: Check backend architecture guard
+        run: uv run --no-project --with-requirements deploy/pyenv/requirements-dev.txt python scripts/backend_architecture_guard.py
+
+  backend-compose-smoke:
+    name: backend compose smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v8.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            deploy/pyenv/requirements.txt
+            deploy/pyenv/requirements-dev.txt
+            uv.lock
+
+      - name: Run compose smoke
+        run: >
+          uv run --no-project --with-requirements deploy/pyenv/requirements-dev.txt
+          python scripts/backend_compose_smoke.py
+          --project-name skyradar-ci-compose-smoke
+          --http-port 18084
+          --fresh-volumes
+          --json

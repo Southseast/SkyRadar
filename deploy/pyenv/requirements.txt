@@ -1,0 +1,19 @@
+# Runtime dependencies for the Python 3.12/3.13 backend upgrade.
+# Transitive dependencies are resolved by pip instead of pinning 2018-era
+# requests and tldextract dependency versions.
+fastapi>=0.136,<0.137
+PyGithub>=2.6,<3
+PyJWT>=2.10,<3
+PyYAML>=6.0,<7
+certifi>=2025.1
+gunicorn>=26,<27
+huey>=2.5,<3
+loguru>=0.7,<0.8
+psutil>=7,<8
+pymongo>=4.11,<5
+pytz>=2025.1
+redis>=8,<9
+requests>=2.32,<3
+requests-file>=2,<3
+tldextract>=5,<6
+uvicorn[standard]>=0.49,<0.50

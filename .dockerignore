@@ -1,0 +1,11 @@
+.git
+.cdp-tools
+docs
+!docs/api
+!docs/api/openapi.yaml
+
+client/node_modules
+client/dist
+
+server/**/*.pyc
+server/**/__pycache__

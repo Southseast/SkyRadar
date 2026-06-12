@@ -1,0 +1,122 @@
+name: skyradar
+
+x-skyradar-image: &skyradar-image
+  image: ${SKYRADAR_IMAGE:-skyradar:latest}
+  build:
+    context: .
+    dockerfile: Dockerfile
+
+x-skyradar-environment: &skyradar-environment
+  MONGODB_URI: mongodb://mongo:27017
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+
+services:
+  skyradar:
+    <<: *skyradar-image
+    expose:
+      - "8888"
+    environment:
+      <<: *skyradar-environment
+      SKYRADAR_ROLE: web
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8888/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  nginx:
+    <<: *skyradar-image
+    ports:
+      - "${SKYRADAR_HTTP_PORT:-80}:80"
+    environment:
+      SKYRADAR_ROLE: nginx
+      SKYRADAR_NGINX_UPSTREAM: skyradar:8888
+      SKYRADAR_BASIC_AUTH_USERNAME: ${SKYRADAR_BASIC_AUTH_USERNAME:-}
+      SKYRADAR_BASIC_AUTH_PASSWORD: ${SKYRADAR_BASIC_AUTH_PASSWORD:-}
+    depends_on:
+      skyradar:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$$SKYRADAR_BASIC_AUTH_USERNAME\" ] && [ -n \"$$SKYRADAR_BASIC_AUTH_PASSWORD\" ]; then curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/health >/dev/null; else curl -fsS http://127.0.0.1/api/health >/dev/null; fi || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  worker:
+    <<: *skyradar-image
+    environment:
+      <<: *skyradar-environment
+      SKYRADAR_ROLE: worker
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "supervisorctl status huey | grep -q RUNNING && python -c \"from core.database import client, result_cache; client.admin.command('ping'); result_cache.ping()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    <<: *skyradar-image
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--protected-mode", "no"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  skyradar-all-in-one:
+    image: ${SKYRADAR_IMAGE:-skyradar:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - all-in-one
+    ports:
+      - "${SKYRADAR_ALL_IN_ONE_HTTP_PORT:-80}:80"
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      SKYRADAR_ROLE: all
+      SKYRADAR_BASIC_AUTH_USERNAME: ${SKYRADAR_BASIC_AUTH_USERNAME:-}
+      SKYRADAR_BASIC_AUTH_PASSWORD: ${SKYRADAR_BASIC_AUTH_PASSWORD:-}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "if [ -n \"$$SKYRADAR_BASIC_AUTH_USERNAME\" ] && [ -n \"$$SKYRADAR_BASIC_AUTH_PASSWORD\" ]; then curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/health >/dev/null; else curl -fsS http://127.0.0.1/api/health >/dev/null; fi || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  mongo:
+    image: ${SKYRADAR_MONGO_IMAGE:-mongo:8.2.7}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD-SHELL", "(mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' || mongo --quiet --eval 'db.runCommand({ ping: 1 }).ok') | grep 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
