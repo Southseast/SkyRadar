@@ -74,10 +74,10 @@ def test_leakage_list_contract_preserves_status_filter_and_pagination(client, mo
 
     assert response.status_code == 200
     body = response.get_json()
+    assert list(body) == ["status", "msg", "result", "total"]
     assert body == {
         "status": 200,
         "msg": "共 42 条记录",
-        "total": 42,
         "result": [
             {
                 "_id": "leak-1",
@@ -88,6 +88,7 @@ def test_leakage_list_contract_preserves_status_filter_and_pagination(client, mo
                 "ignore": 0,
             }
         ],
+        "total": 42,
     }
     assert captured["create_indexes"] == 1
     assert captured["filters"] == {
@@ -124,11 +125,13 @@ def test_leakage_list_contract_returns_empty_message_when_no_records(client, mon
     )
 
     assert response.status_code == 200
-    assert response.get_json() == {
+    body = response.get_json()
+    assert list(body) == ["status", "msg", "result", "total"]
+    assert body == {
         "status": 200,
         "msg": "暂无数据",
-        "total": 0,
         "result": [],
+        "total": 0,
     }
 
 

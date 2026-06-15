@@ -16,6 +16,7 @@ def test_api_payload_preserves_status_msg_result_shape():
         "msg": "获取信息成功",
         "result": [{"tag": "github-token"}],
     }
+    assert list(api_payload([{"tag": "github-token"}])) == ["status", "msg", "result"]
 
 
 def test_api_payload_allows_business_statuses_messages_and_extra_fields():
@@ -36,6 +37,7 @@ def test_api_payload_allows_business_statuses_messages_and_extra_fields():
         "total": 0,
         "generated_at": "2026-06-09T10:30:00+00:00",
     }
+    assert list(payload) == ["status", "msg", "result", "total", "generated_at"]
 
 
 def test_fastapi_response_keeps_body_status_separate_from_http_status():

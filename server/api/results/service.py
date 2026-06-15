@@ -7,6 +7,7 @@
 import json
 
 from api.results import repository as result_repository
+from core.responses import api_shape_response
 
 
 def leakage_list(status, tag=None, language=None, limit=10, from_=1):
@@ -18,12 +19,12 @@ def leakage_list(status, tag=None, language=None, limit=10, from_=1):
         filters = {"language": language, **filters}
     results = result_repository.list_leakages(filters, limit, from_)
     total = result_repository.count_leakages(filters)
-    return {
-        "msg": "共 {} 条记录".format(total) if total else "暂无数据",
-        "status": 200,
-        "result": results,
-        "total": total,
-    }
+    return api_shape_response(
+        200,
+        "共 {} 条记录".format(total) if total else "暂无数据",
+        results,
+        total=total,
+    )
 
 
 def patch_leakage(params):
