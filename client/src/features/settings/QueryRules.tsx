@@ -27,6 +27,7 @@ export function QueryRules() {
   const [rules, setRules] = useState<QueryRule[]>([])
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingTag, setEditingTag] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -77,10 +78,11 @@ export function QueryRules() {
         tag: form.tag.trim(),
         keyword: form.keyword.trim(),
         enabled: form.enabled,
-      })
+      }, editingTag ?? undefined)
       setRules(await fetchQueryRules())
       setForm(emptyForm)
       setEditingId(null)
+      setEditingTag(null)
       setNotice(response.message ?? "保存成功")
     } catch (requestError) {
       setError(getErrorMessage(requestError))
@@ -99,7 +101,7 @@ export function QueryRules() {
         tag: rule.tag,
         keyword: rule.keyword,
         enabled,
-      })
+      }, rule.tag)
       setRules(await fetchQueryRules())
       setNotice(response.message ?? "更新成功")
     } catch (requestError) {
@@ -119,6 +121,7 @@ export function QueryRules() {
       setNotice(response.message ?? "删除成功")
       if (editingId === rule._id) {
         setEditingId(null)
+        setEditingTag(null)
         setForm(emptyForm)
       }
     } catch (requestError) {
@@ -130,6 +133,7 @@ export function QueryRules() {
 
   function startEdit(rule: QueryRule) {
     setEditingId(rule._id)
+    setEditingTag(rule.tag)
     setForm({
       tag: rule.tag,
       keyword: rule.keyword,
@@ -139,6 +143,7 @@ export function QueryRules() {
 
   function resetForm() {
     setEditingId(null)
+    setEditingTag(null)
     setForm(emptyForm)
     setError(null)
     setNotice(null)

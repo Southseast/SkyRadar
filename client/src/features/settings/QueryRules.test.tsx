@@ -23,7 +23,7 @@ describe("QueryRules", () => {
     mockedDeleteQueryRule.mockReset()
   })
 
-  it("loads rules, saves changes, toggles enabled, and deletes with query params", async () => {
+  it("loads rules, updates existing rules, toggles enabled, and deletes by tag", async () => {
     mockedFetchQueryRules
       .mockResolvedValueOnce([
         {
@@ -47,7 +47,7 @@ describe("QueryRules", () => {
       .mockResolvedValueOnce([
         {
           _id: "rule-1",
-          tag: "credential",
+          tag: "credential-renamed",
           keyword: "secret",
           enabled: false,
         },
@@ -71,24 +71,32 @@ describe("QueryRules", () => {
     await userEvent.click(screen.getByRole("switch", { name: "credential 启用状态" }))
 
     await waitFor(() => {
-      expect(mockedSaveQueryRule).toHaveBeenCalledWith({
-        tag: "credential",
-        keyword: "password OR token",
-        enabled: false,
-      })
+      expect(mockedSaveQueryRule).toHaveBeenCalledWith(
+        {
+          tag: "credential",
+          keyword: "password OR token",
+          enabled: false,
+        },
+        "credential",
+      )
     })
 
     await userEvent.click(screen.getByRole("button", { name: "编辑" }))
+    await userEvent.clear(screen.getByLabelText("名称"))
+    await userEvent.type(screen.getByLabelText("名称"), "credential-renamed")
     await userEvent.clear(screen.getByLabelText("关键字"))
     await userEvent.type(screen.getByLabelText("关键字"), "secret")
     await userEvent.click(screen.getByRole("button", { name: "保存" }))
 
     await waitFor(() => {
-      expect(mockedSaveQueryRule).toHaveBeenLastCalledWith({
-        tag: "credential",
-        keyword: "secret",
-        enabled: false,
-      })
+      expect(mockedSaveQueryRule).toHaveBeenLastCalledWith(
+        {
+          tag: "credential-renamed",
+          keyword: "secret",
+          enabled: false,
+        },
+        "credential",
+      )
     })
 
     await userEvent.click(screen.getByRole("button", { name: "删除" }))
@@ -96,11 +104,48 @@ describe("QueryRules", () => {
     await waitFor(() => {
       expect(mockedDeleteQueryRule).toHaveBeenCalledWith({
         _id: "rule-1",
-        tag: "credential",
+        tag: "credential-renamed",
         keyword: "secret",
         enabled: false,
       })
     })
     expect(await screen.findByText("暂无查询规则")).toBeInTheDocument()
+  })
+
+  it("creates new rules without an existing tag", async () => {
+    mockedFetchQueryRules.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        _id: "rule-2",
+        tag: "secret",
+        keyword: "api_key",
+        enabled: true,
+      },
+    ])
+    mockedSaveQueryRule.mockResolvedValue({
+      message: "保存成功",
+    })
+
+    render(
+      <MemoryRouter>
+        <QueryRules />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText("暂无查询规则")).toBeInTheDocument()
+
+    await userEvent.type(screen.getByLabelText("名称"), "secret")
+    await userEvent.type(screen.getByLabelText("关键字"), "api_key")
+    await userEvent.click(screen.getByRole("button", { name: "保存" }))
+
+    await waitFor(() => {
+      expect(mockedSaveQueryRule).toHaveBeenCalledWith(
+        {
+          tag: "secret",
+          keyword: "api_key",
+          enabled: true,
+        },
+        undefined,
+      )
+    })
   })
 })

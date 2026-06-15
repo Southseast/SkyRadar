@@ -15,13 +15,13 @@ describe("result query helpers", () => {
     })
     expect(resultStatusToApiStatus(state.status)).toEqual({
       security: 0,
-      desc: { $exists: false },
+      reviewed: false,
     })
   })
 
   it("maps status labels to the API filter shape", () => {
     expect(resultStatusToApiStatus("不限")).toEqual({})
-    expect(resultStatusToApiStatus("确认")).toEqual({ security: 0, desc: { $exists: true } })
+    expect(resultStatusToApiStatus("确认")).toEqual({ security: 0, reviewed: true })
     expect(resultStatusToApiStatus("误报")).toEqual({ security: 1 })
   })
 

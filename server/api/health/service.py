@@ -4,7 +4,6 @@
 # @Date        : 2026/6/12 11:05
 # @Description : Implements health check service logic.
 
-import requests
 from redis import Redis
 
 from core.config import load_settings
@@ -21,15 +20,6 @@ def _unhealthy(error):
 
 def health_status():
     status = {"api": _healthy("ok")}
-
-    try:
-        github_response = requests.get("https://api.github.com/", timeout=30)
-        status["github"] = {
-            "ok": github_response.status_code < 500,
-            "message": f"HTTP {github_response.status_code}",
-        }
-    except Exception as error:
-        status["github"] = _unhealthy(error)
 
     try:
         settings = load_settings()

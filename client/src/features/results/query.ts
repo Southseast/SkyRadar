@@ -32,14 +32,14 @@ export function resultStatusToApiStatus(status: ResultStatusLabel): LeakageQuery
   }
 
   if (status === "确认") {
-    return { security: 0, desc: { $exists: true } }
+    return { security: 0, reviewed: true }
   }
 
   if (status === "误报") {
     return { security: 1 }
   }
 
-  return { security: 0, desc: { $exists: false } }
+  return { security: 0, reviewed: false }
 }
 
 export function toSearchParams(state: ResultQueryState) {

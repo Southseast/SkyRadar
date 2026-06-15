@@ -149,23 +149,28 @@ def check_health(base_url, timeout, basic_auth=None):
     result = http_get_json(base_url, "/api/v1/health", timeout=timeout, basic_auth=basic_auth)
     payload = result["payload"] if isinstance(result["payload"], dict) else {}
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    github = data.get("github")
+    api = data.get("api")
     mongodb = data.get("mongodb")
-    github_ok = isinstance(github, dict) and github.get("ok") is True
+    redis = data.get("redis")
+    api_ok = isinstance(api, dict) and api.get("ok") is True
     mongodb_ok = isinstance(mongodb, dict) and mongodb.get("ok") is True
+    redis_ok = isinstance(redis, dict) and redis.get("ok") is True
     errors = []
     if result["status"] != 200:
         errors.append("expected HTTP 200")
-    if not github_ok:
-        errors.append("github health is not true")
+    if not api_ok:
+        errors.append("api ok is not true")
     if not mongodb_ok:
         errors.append("mongodb ok is not true")
+    if not redis_ok:
+        errors.append("redis ok is not true")
     return {"name": "api health", "ok": not errors, "errors": errors, **result}
 
 
 def check_leakage_list(base_url, tag, limit, timeout, basic_auth=None):
     query = {
-        "state": "pending",
+        "security": 0,
+        "reviewed": "false",
         "page": 1,
         "page_size": limit,
     }

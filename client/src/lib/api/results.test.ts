@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { apiClient } from "@/lib/api/client"
 import { endpoints } from "@/lib/api/endpoints"
-import { fetchLeakageCode, fetchLeakages, fetchTrend } from "@/lib/api/results"
+import { fetchLeakageCode, fetchLeakages, fetchTrend, patchLeakage, patchLeakageDetail } from "@/lib/api/results"
 
 describe("results api adapter", () => {
   afterEach(() => {
@@ -19,7 +19,7 @@ describe("results api adapter", () => {
     } as AxiosResponse)
 
     await fetchLeakages({
-      status: { security: 0, desc: { $exists: false } },
+      status: { security: 0, reviewed: false },
       tag: "corp",
       language: "Python",
       page_size: 20,
@@ -29,12 +29,103 @@ describe("results api adapter", () => {
     expect(getSpy).toHaveBeenCalledWith(endpoints.leakages, {
       params: {
         security: 0,
-        desc_exists: false,
+        reviewed: false,
         tag: "corp",
         language: "Python",
         page: 2,
         page_size: 20,
       },
+    })
+  })
+
+  it("omits status filters when all result statuses are requested", async () => {
+    const getSpy = vi.spyOn(apiClient, "get").mockResolvedValue({
+      data: {
+        data: [],
+        meta: { total: 0 },
+      },
+    } as AxiosResponse)
+
+    await fetchLeakages({
+      status: {},
+      page_size: 10,
+      page: 1,
+    })
+
+    expect(getSpy).toHaveBeenCalledWith(endpoints.leakages, {
+      params: {
+        page: 1,
+        page_size: 10,
+      },
+    })
+  })
+
+  it("maps list ignored filters to the REST v1 query field", async () => {
+    const getSpy = vi.spyOn(apiClient, "get").mockResolvedValue({
+      data: {
+        data: [],
+        meta: { total: 0 },
+      },
+    } as AxiosResponse)
+
+    await fetchLeakages({
+      status: { ignored: true },
+      page_size: 10,
+      page: 1,
+    })
+
+    expect(getSpy).toHaveBeenCalledWith(endpoints.leakages, {
+      params: {
+        ignored: true,
+        page: 1,
+        page_size: 10,
+      },
+    })
+  })
+
+  it("maps quick ignore mutations to the REST v1 ignored field", async () => {
+    const patchSpy = vi.spyOn(apiClient, "patch").mockResolvedValue({
+      data: {
+        data: { _id: "leakage-1" },
+      },
+    } as AxiosResponse)
+
+    await patchLeakage({
+      id: "leakage-1",
+      project: "acme/skyradar",
+      ignore: 1,
+      security: 1,
+      desc: "",
+    })
+
+    expect(patchSpy).toHaveBeenCalledWith(endpoints.leakage("leakage-1"), {
+      project: "acme/skyradar",
+      security: 1,
+      ignored: true,
+      desc: "",
+    })
+  })
+
+  it("maps detail mutations to the REST v1 ignored field", async () => {
+    const patchSpy = vi.spyOn(apiClient, "patch").mockResolvedValue({
+      data: {
+        data: { _id: "leakage-1" },
+      },
+    } as AxiosResponse)
+
+    await patchLeakageDetail({
+      id: "leakage-1",
+      project: "acme/skyradar",
+      ignore: 0,
+      security: 0,
+      desc: "已确认",
+    })
+
+    expect(patchSpy).toHaveBeenCalledWith(endpoints.leakage("leakage-1"), {
+      project: "acme/skyradar",
+      security: 0,
+      ignored: false,
+      desc: "已确认",
     })
   })
 

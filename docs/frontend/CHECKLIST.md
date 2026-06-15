@@ -17,7 +17,7 @@
 
 - [ ] 用户可见行为与 `PLAN.md` 功能矩阵和 `IMPLEMENTATION_GUIDE.md` API Client 规则兼容。
 - [ ] API endpoint、请求参数和 payload 结构兼容。
-- [ ] 响应解析兼容后端 `status/msg/result` 结构。
+- [ ] 响应解析兼容后端 `data/meta/links` 和 `error/message/detail/request_id` 结构。
 - [ ] URL、query 和 tab 行为与路由契约一致。
 
 ### UI 状态
@@ -54,7 +54,7 @@
 - [ ] Docker build 通过。
 - [ ] 静态资源可访问。
 - [ ] SPA fallback 可用。
-- [ ] `/api/v1/health` 可访问，且 MongoDB/GitHub 子项符合当前后端预期。
+- [ ] `/api/v1/health` 可访问，且 MongoDB/Redis 子项符合当前后端预期。
 - [ ] `/api/v1/leakages` 列表参数符合 REST 契约。
 - [ ] `/api/v1/leakages/{id}` 和 `/api/v1/leakages/{id}/code` 详情链路符合 REST 契约。
 - [ ] `/api/v1/*` 设置资源只读链路可用。

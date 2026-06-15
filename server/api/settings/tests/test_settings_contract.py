@@ -118,6 +118,23 @@ def test_task_settings_put_upserts_and_sends_sighup(client, monkeypatch):
     ]
 
 
+def test_task_settings_put_rejects_invalid_integer_without_500(client):
+    response = client.put("/api/v1/task-schedules/current", json={"page": "many", "minute": 5})
+
+    assert response.status_code == 422
+    assert response.get_json() == {
+        "error": "validation_error",
+        "message": "Request validation failed",
+        "detail": [
+            {
+                "loc": ["body", "page"],
+                "msg": "page must be an integer",
+                "type": "int_parsing",
+            }
+        ],
+    }
+
+
 def test_search_rules_get_sorts_enabled_desc(client, monkeypatch):
     from api.settings import repository as setting
 

@@ -28,7 +28,7 @@ def test_release_gate_health_requires_body_subchecks(monkeypatch):
         lambda *args, **kwargs: {
             "url": "http://skyradar.example.com/api/v1/health",
             "status": 200,
-            "payload": {"data": {"github": {"ok": True}, "mongodb": {"ok": True}}},
+            "payload": {"data": {"api": {"ok": True}, "mongodb": {"ok": True}, "redis": {"ok": True}}},
         },
     )
 
@@ -47,7 +47,7 @@ def test_release_gate_health_fails_when_mongodb_subcheck_is_unhealthy(monkeypatc
         lambda *args, **kwargs: {
             "url": "http://skyradar.example.com/api/v1/health",
             "status": 200,
-            "payload": {"data": {"github": {"ok": True}, "mongodb": {"ok": False}}},
+            "payload": {"data": {"api": {"ok": True}, "mongodb": {"ok": False}, "redis": {"ok": True}}},
         },
     )
 
@@ -84,7 +84,8 @@ def test_release_gate_leakage_list_uses_frontend_pagination_contract(monkeypatch
     assert result["ok"] is True
     assert result["leakage_id"] == "real-leakage-id"
     assert captured["query"] == {
-        "state": "pending",
+        "security": 0,
+        "reviewed": "false",
         "page": 1,
         "page_size": 10,
         "tag": "REAL_TAG",

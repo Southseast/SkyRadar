@@ -12,6 +12,13 @@ from fastapi import Request
 from core.responses import json_response
 
 
+class InvalidQueryParameter(ValueError):
+    def __init__(self, name, message):
+        super().__init__(message)
+        self.name = name
+        self.message = message
+
+
 def response(data, status_code=200):
     return json_response(data, status_code=status_code)
 
@@ -36,7 +43,10 @@ def as_int(params, name, default=None):
     value = params.get(name, default)
     if value is None:
         return None
-    return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError) as error:
+        raise InvalidQueryParameter(name, f"{name} must be an integer") from error
 
 
 def as_bool(params, name, default=False):

@@ -7,11 +7,6 @@
 def test_health_contract_uses_stable_response_shape(client, monkeypatch):
     from api.health import service as health
 
-    class FakeResponse:
-        ok = True
-        status_code = 200
-        text = "https://api.github.com/"
-
     class FakeDatabase:
         def command(self, command):
             assert command == "ping"
@@ -32,7 +27,6 @@ def test_health_contract_uses_stable_response_shape(client, monkeypatch):
         def ping(self):
             return True
 
-    monkeypatch.setattr(health.requests, "get", lambda *args, **kwargs: FakeResponse())
     monkeypatch.setattr(health, "create_mongo_client", FakeMongoClient)
     monkeypatch.setattr(health, "Redis", FakeRedis)
 
@@ -43,7 +37,6 @@ def test_health_contract_uses_stable_response_shape(client, monkeypatch):
     assert set(body) == {"data"}
     assert body["data"] == {
         "api": {"ok": True, "message": "ok"},
-        "github": {"ok": True, "message": "HTTP 200"},
         "mongodb": {"ok": True, "message": "ping ok"},
         "redis": {"ok": True, "message": "ping ok"},
     }

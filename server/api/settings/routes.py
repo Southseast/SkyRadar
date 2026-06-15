@@ -10,7 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from api.settings import service as settings_service
 from core.responses import rest_error_response, rest_response
 
-from ..shared import as_bool, as_int, request_params
+from ..shared import InvalidQueryParameter, as_bool, as_int, request_params
 from .schemas import MailPayload, QueryPayload, WebhookPayload
 
 
@@ -19,6 +19,21 @@ router = APIRouter()
 
 def _handle_service_error(error):
     return rest_error_response("settings_error", error.message, status_code=error.status_code)
+
+
+def _handle_invalid_query_parameter(error):
+    return rest_error_response(
+        "validation_error",
+        "Request validation failed",
+        status_code=422,
+        detail=[
+            {
+                "loc": ["body", error.name],
+                "msg": error.message,
+                "type": "int_parsing",
+            }
+        ],
+    )
 
 
 async def _run_service_response(func, *args, status_code=200, **kwargs):
@@ -115,10 +130,15 @@ def get_task_settings():
 @router.put("/api/v1/task-schedules/current")
 async def put_task_settings(request: Request):
     params = await request_params(request)
+    try:
+        page = as_int(params, "page", 1)
+        minute = as_int(params, "minute", 10)
+    except InvalidQueryParameter as error:
+        return _handle_invalid_query_parameter(error)
     return await _run_service_response(
         settings_service.put_task_settings,
-        as_int(params, "page", 1),
-        as_int(params, "minute", 10),
+        page,
+        minute,
     )
 
 
@@ -172,10 +192,14 @@ def get_mail_settings():
 @router.put("/api/v1/mail-settings/current")
 async def put_mail_settings(request: Request):
     params = await request_params(request)
+    try:
+        port = as_int(params, "port")
+    except InvalidQueryParameter as error:
+        return _handle_invalid_query_parameter(error)
     payload = MailPayload(
         from_=params.get("from"),
         host=params.get("host"),
-        port=as_int(params, "port"),
+        port=port,
         tls=as_bool(params, "tls", False),
         username=params.get("username"),
         password=params.get("password"),

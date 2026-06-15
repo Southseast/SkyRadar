@@ -12,6 +12,7 @@ import {
   fetchNoticeMails,
   fetchQueryRules,
   fetchWebhookSettings,
+  saveQueryRule,
   saveSmtpSetting,
 } from "@/lib/api/settings"
 
@@ -102,6 +103,45 @@ describe("settings api adapter", () => {
     })
 
     expect(deleteSpy).toHaveBeenCalledWith("/api/v1/search-rules/credential%2Ftoken")
+  })
+
+  it("creates search rules with the collection endpoint", async () => {
+    const postSpy = vi.spyOn(apiClient, "post").mockResolvedValue({
+      data: { data: [] },
+    } as AxiosResponse)
+
+    await saveQueryRule({
+      tag: "credential",
+      keyword: "password OR token",
+      enabled: true,
+    })
+
+    expect(postSpy).toHaveBeenCalledWith("/api/v1/search-rules", {
+      tag: "credential",
+      keyword: "password OR token",
+      enabled: true,
+    })
+  })
+
+  it("updates search rules by tag path", async () => {
+    const putSpy = vi.spyOn(apiClient, "put").mockResolvedValue({
+      data: { data: [] },
+    } as AxiosResponse)
+
+    await saveQueryRule(
+      {
+        tag: "credential-renamed",
+        keyword: "secret",
+        enabled: false,
+      },
+      "credential/token",
+    )
+
+    expect(putSpy).toHaveBeenCalledWith("/api/v1/search-rules/credential%2Ftoken", {
+      tag: "credential-renamed",
+      keyword: "secret",
+      enabled: false,
+    })
   })
 
   it("deletes Webhook settings by webhook_id when available", async () => {

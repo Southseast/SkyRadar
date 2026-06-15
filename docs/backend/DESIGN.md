@@ -36,7 +36,7 @@ server/
 当前 domain：
 
 - `docs`：OpenAPI/Swagger 开关和文档服务。
-- `health`：API、GitHub 和 MongoDB 健康检查。
+- `health`：API、MongoDB 和 Redis 本地依赖健康检查；不依赖 GitHub 外部网络探测。
 - `results`：泄露列表、详情、代码和状态处理。
 - `settings`：GitHub、规则、任务、黑名单、通知、SMTP、webhook 设置。
 - `statistics`：趋势和统计面板。
@@ -310,7 +310,7 @@ server/
 - `PATCH /api/v1/leakages/{leakage_id}` 更新 `security`、`ignored`、`desc` 和可选同项目结果。
 - `GET /api/v1/leakages/{leakage_id}/code` 返回 base64 编码代码和受影响资产；代码内容不得进入普通日志、OpenAPI 示例或测试快照。
 - `GET /api/v1/trends` 返回仪表盘统计和扫描任务运行信息。
-- `GET /api/v1/statistics` 使用 `group_by` 明确聚合维度，当前维度为 `tag` 或 `language`。
+- `GET /api/v1/statistics` 使用 `by` 明确聚合维度，当前维度为 `tag`、`language`、`security`、`ignore` 或 `project`。
 
 设置资源：
 
@@ -320,8 +320,8 @@ server/
 - 黑名单使用 `/api/v1/blacklist-items` 和 `/api/v1/blacklist-items/{text}`。
 - 邮件通知接收人使用 `/api/v1/notification-recipients` 和 `/api/v1/notification-recipients/{mail}`。
 - SMTP 配置使用 `/api/v1/mail-settings/current`；响应不得包含 SMTP password。
-- Webhook 配置使用 `/api/v1/webhooks` 和 `/api/v1/webhooks/{webhook_id}`；响应只返回脱敏 URL、稳定 ID 和 `has_secret`。
-- Webhook 测试建模为任务资源 `POST /api/v1/webhook-tests`，成功接受使用 HTTP 202。
+- Webhook 配置使用 `/api/v1/webhooks` 和 `/api/v1/webhooks/{webhook_id}`；请求必须包含 `secret`，响应只返回脱敏 URL、稳定 ID 和 `has_secret`。
+- Webhook 测试使用 `POST /api/v1/webhook-tests` 同步投递测试消息；provider 确认成功后返回 HTTP 201。
 
 API 文档入口：
 
@@ -333,8 +333,8 @@ API 文档入口：
 健康检查：
 
 - `GET /api/v1/health` 使用标准成功响应结构。
-- `data.api`、`data.github`、`data.mongodb` 和 `data.redis` 统一使用 `{ ok, message, latency_ms }`。
-- HTTP 200 代表健康检查请求成功；依赖不可用时可以返回 HTTP 503 和统一错误体。
+- `data.api`、`data.mongodb` 和 `data.redis` 统一使用 `{ ok, message, latency_ms }`。
+- HTTP 200 代表健康检查请求成功；依赖状态在对应子项中表达，避免外部 GitHub 网络抖动影响容器 healthcheck。
 - MongoDB 检查使用 `db.command("ping")`。
 
 ## Sync 和 Async 规则

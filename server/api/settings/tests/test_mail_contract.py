@@ -123,6 +123,30 @@ def test_mail_setting_put_saves_password_but_excludes_it_from_response(client, m
     assert captured["projection"] == {"_id": 0, "password": 0}
 
 
+def test_mail_setting_put_rejects_invalid_port_without_500(client):
+    response = client.put(
+        "/api/v1/mail-settings/current",
+        json={
+            "from": "skyradar@example.com",
+            "host": "smtp.example.com",
+            "port": "smtp",
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.get_json() == {
+        "error": "validation_error",
+        "message": "Request validation failed",
+        "detail": [
+            {
+                "loc": ["body", "port"],
+                "msg": "port must be an integer",
+                "type": "int_parsing",
+            }
+        ],
+    }
+
+
 def test_mail_setting_put_without_password_does_not_overwrite_existing_password(
     client, monkeypatch
 ):

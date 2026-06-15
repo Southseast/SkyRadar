@@ -38,21 +38,13 @@ paths:
                 data:
                   api:
                     ok: true
-                  github:
-                    ok: true
-                    message: reachable
+                    message: ok
                   mongodb:
                     ok: true
                     message: ping ok
                   redis:
                     ok: true
                     message: ping ok
-                meta:
-                  checked_at: "2026-06-15T10:00:00Z"
-                links:
-                  self: /api/v1/health
-        "503":
-          $ref: "#/components/responses/ServiceUnavailable"
   /api/v1/openapi.json:
     get:
       tags:
@@ -265,7 +257,7 @@ paths:
       summary: 获取聚合统计
       operationId: listStatistics
       parameters:
-        - name: group_by
+        - name: by
           in: query
           required: false
           description: 聚合字段。
@@ -274,6 +266,9 @@ paths:
             enum:
               - tag
               - language
+              - security
+              - ignore
+              - project
             default: tag
         - name: tag
           in: query
@@ -288,8 +283,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/StatisticListSuccess"
-        "400":
-          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
   /api/v1/github-accounts:
     get:
       tags:
@@ -676,7 +671,7 @@ paths:
     post:
       tags:
         - Settings
-      summary: 发送 webhook 测试任务
+      summary: 同步发送 webhook 测试消息
       operationId: createWebhookTest
       requestBody:
         required: true
@@ -686,7 +681,7 @@ paths:
               $ref: "#/components/schemas/WebhookRequest"
       responses:
         "201":
-          description: webhook 测试消息已发送。
+          description: webhook 测试消息已同步投递并由 provider 确认成功。
           content:
             application/json:
               schema:
@@ -803,8 +798,14 @@ components:
           type: string
           example: 请求参数无效
         detail:
-          type: object
-          additionalProperties: true
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: array
+              items:
+                type: object
+                additionalProperties: true
+            - type: string
           example:
             field: page_size
             reason: must be between 1 and 100
@@ -839,13 +840,10 @@ components:
       type: object
       required:
         - api
-        - github
         - mongodb
         - redis
       properties:
         api:
-          $ref: "#/components/schemas/HealthItem"
-        github:
           $ref: "#/components/schemas/HealthItem"
         mongodb:
           $ref: "#/components/schemas/HealthItem"
@@ -995,22 +993,27 @@ components:
           $ref: "#/components/schemas/Engine"
     TrendCounter:
       type: object
+      required:
+        - total
+        - ignore
+        - risk
       properties:
         total:
           type: integer
-        ignored:
+        ignore:
           type: integer
-        confirmed:
+        risk:
           type: integer
     Engine:
       type: object
+      required:
+        - status
+        - last
       properties:
-        running:
+        status:
           type: boolean
-        last_run_at:
-          type: string
-          format: date-time
-          nullable: true
+        last:
+          type: integer
     StatisticListSuccess:
       allOf:
         - $ref: "#/components/schemas/ApiSuccess"
@@ -1301,6 +1304,7 @@ components:
       required:
         - provider
         - webhook_url
+        - secret
       properties:
         provider:
           type: string

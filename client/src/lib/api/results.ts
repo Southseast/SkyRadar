@@ -45,14 +45,7 @@ export async function fetchStatistics(by: "tag" | "language", tag?: string) {
 
 export async function fetchLeakages(params: LeakageListParams) {
   const response = await apiClient.get<ApiResponse<unknown>>(endpoints.leakages, {
-    params: {
-      security: params.status.security,
-      desc_exists: params.status.desc?.$exists,
-      tag: params.tag || undefined,
-      language: params.language || undefined,
-      page: params.page,
-      page_size: params.page_size,
-    },
+    params: toLeakageListQuery(params),
   })
   const meta = getResponseMeta(response.data)
 
@@ -63,8 +56,7 @@ export async function fetchLeakages(params: LeakageListParams) {
 }
 
 export async function patchLeakage(payload: LeakagePatchPayload) {
-  const { id, ...body } = payload
-  const response = await apiClient.patch<ApiResponse<unknown>>(endpoints.leakage(id), body)
+  const response = await apiClient.patch<ApiResponse<unknown>>(endpoints.leakage(payload.id), toLeakagePatchBody(payload))
   return toMutationResult(getResponseData(response.data), "处理成功")
 }
 
@@ -82,9 +74,29 @@ export async function fetchLeakageCode(id: string) {
 }
 
 export async function patchLeakageDetail(payload: LeakageDetailForm) {
-  const { id, ...body } = payload
-  const response = await apiClient.patch<ApiResponse<unknown>>(endpoints.leakage(id), body)
+  const response = await apiClient.patch<ApiResponse<unknown>>(endpoints.leakage(payload.id), toLeakagePatchBody(payload))
   return toMutationResult(getResponseData(response.data), "处理成功")
+}
+
+function toLeakageListQuery(params: LeakageListParams) {
+  return {
+    ...(params.status.security === undefined ? {} : { security: params.status.security }),
+    ...(params.status.ignored === undefined ? {} : { ignored: params.status.ignored }),
+    ...(params.status.reviewed === undefined ? {} : { reviewed: params.status.reviewed }),
+    ...(params.tag ? { tag: params.tag } : {}),
+    ...(params.language ? { language: params.language } : {}),
+    page: params.page,
+    page_size: params.page_size,
+  }
+}
+
+function toLeakagePatchBody(payload: LeakagePatchPayload | LeakageDetailForm) {
+  return {
+    ...(payload.project ? { project: payload.project } : {}),
+    security: payload.security,
+    ignored: payload.ignore === 1,
+    desc: payload.desc,
+  }
 }
 
 function normalizeTrend(raw: TrendData | null | undefined): TrendData {

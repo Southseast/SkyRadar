@@ -10,5 +10,6 @@ from pydantic import BaseModel
 
 
 class HealthStatus(BaseModel):
-    github: dict[str, Any]
+    api: dict[str, Any]
     mongodb: dict[str, Any]
+    redis: dict[str, Any]

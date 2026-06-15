@@ -48,9 +48,8 @@ export interface Leakage {
 
 export interface LeakageQueryStatus {
   security?: 0 | 1
-  desc?: {
-    $exists: boolean
-  }
+  ignored?: boolean
+  reviewed?: boolean
 }
 
 export interface LeakageListParams {

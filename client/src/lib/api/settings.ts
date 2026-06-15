@@ -50,8 +50,10 @@ export async function fetchQueryRules() {
   return normalizeList<QueryRule>(getResponseData(response.data))
 }
 
-export async function saveQueryRule(payload: QueryRulePayload) {
-  const response = await apiClient.post<ApiResponse<unknown>>(endpoints.searchRules, payload)
+export async function saveQueryRule(payload: QueryRulePayload, existingTag?: string) {
+  const response = existingTag
+    ? await apiClient.put<ApiResponse<unknown>>(endpoints.searchRule(existingTag), payload)
+    : await apiClient.post<ApiResponse<unknown>>(endpoints.searchRules, payload)
   return toMutationResult(normalizeList<QueryRule>(getResponseData(response.data)), "保存成功")
 }
 
