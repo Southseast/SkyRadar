@@ -4,8 +4,6 @@
 # @Date        : 2026/6/11 11:43
 # @Description : Tests results listing API contract behavior.
 
-import json
-
 
 class FakeCursor:
     def __init__(self, documents):
@@ -28,7 +26,7 @@ class FakeCursor:
         return iter(self.documents)
 
 
-def test_leakage_list_contract_preserves_status_filter_and_pagination(client, monkeypatch):
+def test_leakage_results_list_uses_rest_filters_and_pagination(client, monkeypatch):
     from api.results import repository as result
 
     captured = {"create_indexes": 0}
@@ -62,23 +60,23 @@ def test_leakage_list_contract_preserves_status_filter_and_pagination(client, mo
     monkeypatch.setattr(result, "create_indexes", fake_create_indexes)
 
     response = client.get(
-        "/api/leakage",
+        "/api/v1/leakages",
         query_string={
-            "status": json.dumps({"security": 0, "ignore": 0}),
+            "security": "0",
+            "ignored": "false",
+            "reviewed": "true",
             "tag": "github-token",
             "language": "Python",
-            "limit": "2",
-            "from": "3",
+            "page_size": "2",
+            "page": "3",
         },
     )
 
     assert response.status_code == 200
     body = response.get_json()
-    assert list(body) == ["status", "msg", "result", "total"]
+    assert list(body) == ["data", "meta"]
     assert body == {
-        "status": 200,
-        "msg": "共 42 条记录",
-        "result": [
+        "data": [
             {
                 "_id": "leak-1",
                 "project": "org/repo",
@@ -88,12 +86,13 @@ def test_leakage_list_contract_preserves_status_filter_and_pagination(client, mo
                 "ignore": 0,
             }
         ],
-        "total": 42,
+        "meta": {"total": 42, "page": 3, "page_size": 2},
     }
     assert captured["create_indexes"] == 1
     assert captured["filters"] == {
         "security": 0,
         "ignore": 0,
+        "desc": {"$exists": True},
         "tag": "github-token",
         "language": "Python",
     }
@@ -106,7 +105,7 @@ def test_leakage_list_contract_preserves_status_filter_and_pagination(client, mo
     ]
 
 
-def test_leakage_list_contract_returns_empty_message_when_no_records(client, monkeypatch):
+def test_leakage_results_list_returns_empty_rest_collection(client, monkeypatch):
     from api.results import repository as result
 
     class FakeResultCollection:
@@ -119,23 +118,16 @@ def test_leakage_list_contract_returns_empty_message_when_no_records(client, mon
     monkeypatch.setattr(result, "result_col", FakeResultCollection())
     monkeypatch.setattr(result, "create_indexes", lambda: None)
 
-    response = client.get(
-        "/api/leakage",
-        query_string={"status": json.dumps({"security": 1, "ignore": 1})},
-    )
+    response = client.get("/api/v1/leakages", query_string={"ignored": "true"})
 
     assert response.status_code == 200
-    body = response.get_json()
-    assert list(body) == ["status", "msg", "result", "total"]
-    assert body == {
-        "status": 200,
-        "msg": "暂无数据",
-        "result": [],
-        "total": 0,
+    assert response.get_json() == {
+        "data": [],
+        "meta": {"total": 0, "page": 1, "page_size": 20},
     }
 
 
-def test_leakage_info_contract_uses_stable_projection(client, monkeypatch):
+def test_leakage_result_detail_uses_rest_path_and_projection(client, monkeypatch):
     from api.results import repository as result
 
     captured = {}
@@ -148,13 +140,11 @@ def test_leakage_info_contract_uses_stable_projection(client, monkeypatch):
 
     monkeypatch.setattr(result, "result_col", FakeResultCollection())
 
-    response = client.get("/api/leakage/info?id=leak-1")
+    response = client.get("/api/v1/leakages/leak-1")
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "status": 200,
-        "msg": "获取信息成功",
-        "result": {"project": "org/repo", "tag": "github-token", "security": 0},
+        "data": {"project": "org/repo", "tag": "github-token", "security": 0},
     }
     assert captured == {
         "filters": {"_id": "leak-1"},
@@ -162,7 +152,7 @@ def test_leakage_info_contract_uses_stable_projection(client, monkeypatch):
     }
 
 
-def test_leakage_code_contract_uses_stable_projection(client, monkeypatch):
+def test_leakage_result_code_uses_rest_path_and_projection(client, monkeypatch):
     from api.results import repository as result
 
     captured = {}
@@ -175,15 +165,38 @@ def test_leakage_code_contract_uses_stable_projection(client, monkeypatch):
 
     monkeypatch.setattr(result, "result_col", FakeResultCollection())
 
-    response = client.get("/api/leakage/code?id=leak-1")
+    response = client.get("/api/v1/leakages/leak-1/code")
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "status": 200,
-        "msg": "获取信息成功",
-        "result": {"code": "token = 'redacted'", "affect": ["config.py"]},
+        "data": {"code": "token = 'redacted'", "affect": ["config.py"]},
     }
     assert captured == {
         "filters": {"_id": "leak-1"},
         "projection": {"_id": 0, "code": 1, "affect": 1},
     }
+
+
+def test_leakage_result_detail_returns_rest_404(client, monkeypatch):
+    from api.results import repository as result
+
+    class FakeResultCollection:
+        def find_one(self, filters, projection):
+            return None
+
+    monkeypatch.setattr(result, "result_col", FakeResultCollection())
+
+    response = client.get("/api/v1/leakages/missing")
+
+    assert response.status_code == 404
+    assert response.get_json() == {
+        "error": "leakage_result_not_found",
+        "message": "Leakage result not found",
+        "detail": {"id": "missing"},
+    }
+
+
+def test_legacy_leakage_routes_are_not_registered(client):
+    assert client.get("/api/leakage").status_code == 404
+    assert client.get("/api/leakage/info?id=leak-1").status_code == 404
+    assert client.get("/api/leakage/code?id=leak-1").status_code == 404

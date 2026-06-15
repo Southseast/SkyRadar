@@ -72,9 +72,9 @@ export function GithubAccounts() {
         username: form.username.trim(),
         password: form.password,
       })
-      setAccounts(response.result ?? [])
+      setAccounts(await fetchGithubAccounts())
       setForm(emptyForm)
-      setNotice(response.msg ?? "添加成功")
+      setNotice(response.message ?? "添加成功")
     } catch (requestError) {
       setError(getErrorMessage(requestError))
     } finally {
@@ -88,8 +88,8 @@ export function GithubAccounts() {
     setDeletingUsername(username)
     try {
       const response = await deleteGithubAccount(username)
-      setAccounts(response.result ?? [])
-      setNotice(response.msg ?? "删除成功")
+      setAccounts((current) => current.filter((account) => account.username !== username))
+      setNotice(response.message ?? "删除成功")
     } catch (requestError) {
       setError(getErrorMessage(requestError))
     } finally {

@@ -67,16 +67,9 @@ def test_real_openapi_filter_contains_only_get_operations():
     for path_item in filtered["paths"].values():
         methods = set(path_item) & smoke.HTTP_METHODS
         assert methods == {"get"}
-    leakage_status = filtered["components"]["parameters"]["LeakageStatusQuery"]
-    assert leakage_status["schema"] == {
-        "type": "string",
-        "enum": [smoke.LEAKAGE_STATUS_SMOKE_VALUE],
-    }
-    assert leakage_status["example"] == smoke.LEAKAGE_STATUS_SMOKE_VALUE
-    leakage_parameters = filtered["paths"]["/api/leakage"]["get"]["parameters"]
-    assert leakage_parameters[0]["name"] == "status"
-    assert "$ref" not in leakage_parameters[0]
-    assert leakage_parameters[0]["schema"]["enum"] == [smoke.LEAKAGE_STATUS_SMOKE_VALUE]
+    leakage_parameters = filtered["paths"]["/api/v1/leakages"]["get"]["parameters"]
+    assert leakage_parameters[0]["name"] == "security"
+    assert leakage_parameters[0]["schema"]["enum"] == [0, 1]
 
 
 def test_dry_run_does_not_require_running_service_or_schemathesis_cli(tmp_path):
@@ -84,7 +77,7 @@ def test_dry_run_does_not_require_running_service_or_schemathesis_cli(tmp_path):
         "openapi": "3.0.3",
         "info": {"title": "Dry Run", "version": "1"},
         "paths": {
-            "/api/health": {
+            "/api/v1/health": {
                 "get": {
                     "operationId": "getHealth",
                     "responses": {"200": {"description": "ok"}},
@@ -120,5 +113,5 @@ def test_dry_run_does_not_require_running_service_or_schemathesis_cli(tmp_path):
     assert "--phases=fuzzing" in result.stdout
     assert "--mode=positive" in result.stdout
     assert "--max-examples=1" in result.stdout
-    assert "GET /api/health" in result.stdout
+    assert "GET /api/v1/health" in result.stdout
     assert "DELETE" not in result.stdout

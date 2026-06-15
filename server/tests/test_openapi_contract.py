@@ -12,6 +12,29 @@ import yaml
 
 OPENAPI_PATH = Path("docs/api/openapi.yaml")
 API_ROUTES_ROOT = Path("server/api")
+EXPECTED_RUNTIME_PATHS = {
+    "/api/v1/health",
+    "/api/v1/openapi.json",
+    "/api/v1/docs",
+    "/api/v1/leakages",
+    "/api/v1/leakages/{leakage_id}",
+    "/api/v1/leakages/{leakage_id}/code",
+    "/api/v1/trends",
+    "/api/v1/statistics",
+    "/api/v1/github-accounts",
+    "/api/v1/github-accounts/{username}",
+    "/api/v1/search-rules",
+    "/api/v1/search-rules/{tag}",
+    "/api/v1/task-schedules/current",
+    "/api/v1/blacklist-items",
+    "/api/v1/blacklist-items/{text:path}",
+    "/api/v1/notification-recipients",
+    "/api/v1/notification-recipients/{mail}",
+    "/api/v1/mail-settings/current",
+    "/api/v1/webhooks",
+    "/api/v1/webhooks/{webhook_id}",
+    "/api/v1/webhook-tests",
+}
 
 
 def _registered_api_paths():
@@ -41,15 +64,12 @@ def test_openapi_yaml_is_parseable():
     schema = yaml.safe_load(OPENAPI_PATH.read_text(encoding="utf-8"))
 
     assert schema["openapi"].startswith("3.")
-    assert schema["info"]["title"] == "SkyRadar Backend API"
+    assert schema["info"]["title"] == "SkyRadar REST API"
     assert isinstance(schema["paths"], dict)
     assert schema["paths"]
 
 
-def test_openapi_paths_cover_api_registry():
-    schema = yaml.safe_load(OPENAPI_PATH.read_text(encoding="utf-8"))
-    openapi_paths = set(schema["paths"])
+def test_registered_api_paths_match_final_rest_v1_contract():
     registered_paths = _registered_api_paths()
 
-    assert registered_paths
-    assert registered_paths <= openapi_paths
+    assert registered_paths == EXPECTED_RUNTIME_PATHS

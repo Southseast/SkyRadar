@@ -7,13 +7,12 @@
 from fastapi import APIRouter
 
 from api.health import service as health_service
-
-from ..shared import response
+from core.responses import rest_response
 
 
 router = APIRouter()
 
 
-@router.get("/api/health")
+@router.get("/api/v1/health")
 def health():
-    return response(health_service.health_status())
+    return rest_response(health_service.health_status())

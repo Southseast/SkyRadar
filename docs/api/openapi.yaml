@@ -1,62 +1,64 @@
 openapi: 3.0.3
 info:
-  title: SkyRadar Backend API
-  version: 0.1.0
+  title: SkyRadar REST API
+  version: 1.0.0
   description: |
-    SkyRadar 当前 FastAPI 后端 `/api/*` 的最小 OpenAPI 契约源。
+    SkyRadar 最终 RESTful API 契约源。所有业务接口使用 `/api/v1/*` 路径。
 
-    注意：除 `/api/health` 外，多数接口的 `status` 是响应 body 中的历史业务字段，
-    不等同于 HTTP status code。当前实现通常以 HTTP 200 返回业务成功、失败或历史兼容状态。
+    成功响应统一使用 `data`、`meta`、`links`；错误响应统一使用
+    `error`、`message`、`detail`、`request_id`。
 servers:
   - url: /
 tags:
   - name: Health
-    description: 健康检查
+    description: 服务和依赖健康检查
   - name: Docs
     description: OpenAPI 和 Swagger UI 文档入口，生产默认关闭
-  - name: Results
-    description: 泄露结果查询、详情和处理
+  - name: Leakages
+    description: 泄露结果查询、详情、代码和处理
   - name: Statistics
-    description: 仪表盘和聚合统计
+    description: 仪表盘趋势和聚合统计
   - name: Settings
     description: GitHub 账号、规则、任务、通知和黑名单设置
 paths:
-  /api/health:
+  /api/v1/health:
     get:
       tags:
         - Health
-      summary: 检查 GitHub 和 MongoDB 可达性
-      description: |
-        该接口响应结构特殊，不使用 `status/msg/result` 包裹。
-        `github` 和 `mongodb` 都可能是错误字符串。
+      summary: 检查 API 和依赖可用性
       operationId: getHealth
       responses:
         "200":
-          description: 健康检查结果。即使子项失败，HTTP 也可能为 200。
+          description: API 可响应，依赖状态在 data 中返回。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/HealthResponse"
-              examples:
-                ok:
-                  summary: GitHub 和 MongoDB 可达
-                  value:
-                    github: true
-                    mongodb:
-                      ok: 1
-                mongodb_error:
-                  summary: MongoDB 历史 API 不兼容
-                  value:
-                    github: true
-                    mongodb: "no such command: 'getlasterror'"
-  /api/openapi.json:
+                $ref: "#/components/schemas/HealthSuccess"
+              example:
+                data:
+                  api:
+                    ok: true
+                  github:
+                    ok: true
+                    message: reachable
+                  mongodb:
+                    ok: true
+                    message: ping ok
+                  redis:
+                    ok: true
+                    message: ping ok
+                meta:
+                  checked_at: "2026-06-15T10:00:00Z"
+                links:
+                  self: /api/v1/health
+        "503":
+          $ref: "#/components/responses/ServiceUnavailable"
+  /api/v1/openapi.json:
     get:
       tags:
         - Docs
       summary: 获取 OpenAPI JSON
-      description: |
-        默认关闭。仅在受控文档开关启用时返回 OpenAPI JSON；具体开关取值由后端实现指南维护。
-        生产环境应放在认证代理、VPN、内网或应用鉴权之后。
+      description: 默认关闭；仅在受控文档开关启用时返回当前契约。
       operationId: getOpenApiJson
       responses:
         "200":
@@ -66,19 +68,13 @@ paths:
               schema:
                 type: object
         "404":
-          description: 文档入口关闭。
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EmptyArrayResponse"
-  /api/docs:
+          $ref: "#/components/responses/NotFound"
+  /api/v1/docs:
     get:
       tags:
         - Docs
       summary: 打开 Swagger UI
-      description: |
-        默认关闭。仅在受控文档开关启用时返回 Swagger UI HTML；具体开关取值由后端实现指南维护。
-        UI 会读取 `/api/openapi.json`。
+      description: 默认关闭；UI 读取 `/api/v1/openapi.json`。
       operationId: getSwaggerDocs
       responses:
         "200":
@@ -88,23 +84,38 @@ paths:
               schema:
                 type: string
         "404":
-          description: 文档入口关闭。
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EmptyArrayResponse"
-  /api/leakage:
+          $ref: "#/components/responses/NotFound"
+  /api/v1/leakages:
     get:
       tags:
-        - Results
+        - Leakages
       summary: 获取泄露结果列表
-      description: |
-        `status` query 参数必须是 JSON 字符串。当前 FastAPI route 要求该参数必传；
-        缺失时返回 HTTP 422。service 层仍直接 `json.loads(status)`，传非 JSON 字符串可能触发 500。
-        列表结果排除 `code` 和 `affect`。
       operationId: listLeakages
       parameters:
-        - $ref: "#/components/parameters/LeakageStatusQuery"
+        - name: security
+          in: query
+          required: false
+          description: 安全状态过滤，0 表示待确认风险，1 表示安全或忽略。
+          schema:
+            type: integer
+            enum:
+              - 0
+              - 1
+          example: 0
+        - name: ignored
+          in: query
+          required: false
+          description: 是否忽略。
+          schema:
+            type: boolean
+          example: false
+        - name: reviewed
+          in: query
+          required: false
+          description: 是否已有处理备注。
+          schema:
+            type: boolean
+          example: true
         - name: tag
           in: query
           required: false
@@ -119,246 +130,171 @@ paths:
           schema:
             type: string
           example: Python
-        - name: limit
-          in: query
-          required: false
-          description: 每页数量，当前后端默认 10。
-          schema:
-            type: integer
-            default: 10
-            minimum: 1
-          example: 10
-        - name: from
-          in: query
-          required: false
-          description: 页码，当前后端默认 1。
-          schema:
-            type: integer
-            default: 1
-            minimum: 1
-          example: 1
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
       responses:
         "200":
           description: 泄露结果分页列表。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LeakageListResponse"
-              examples:
-                pending:
-                  summary: 待处理结果
-                  value:
-                    status: 200
-                    msg: 共 1 条记录
-                    total: 1
-                    result:
-                      - _id: leak-001
-                        link: https://github.com/example/repo/blob/main/config.py
-                        project: example/repo
-                        project_url: https://github.com/example/repo
-                        language: Python
-                        username: example
-                        avatar_url: https://avatars.githubusercontent.com/u/1?v=4
-                        filepath: config.py
-                        filename: config.py
-                        security: 0
-                        ignore: 0
-                        tag: github-token
-                        desc: ""
-                        datetime: "2026-06-05 10:00:00"
-                        timestamp: 1780644000
-                empty:
-                  summary: 无数据
-                  value:
-                    status: 200
-                    msg: 暂无数据
-                    total: 0
-                    result: []
-        "422":
-          description: 缺少必填 query 参数或参数类型不符合 FastAPI 校验。
+                $ref: "#/components/schemas/LeakageListSuccess"
+              example:
+                data:
+                  - _id: leak-001
+                    link: https://github.com/example/repo/blob/main/config.py
+                    project: example/repo
+                    project_url: https://github.com/example/repo
+                    language: Python
+                    username: example
+                    avatar_url: https://avatars.githubusercontent.com/u/1?v=4
+                    filepath: config.py
+                    filename: config.py
+                    security: 0
+                    ignore: 0
+                    tag: github-token
+                    desc: ""
+                    datetime: "2026-06-15T10:00:00Z"
+                meta:
+                  page: 1
+                  page_size: 20
+                  total: 1
+                links:
+                  self: /api/v1/leakages?page=1&page_size=20
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/leakages/{leakage_id}:
+    get:
+      tags:
+        - Leakages
+      summary: 获取泄露详情元信息
+      operationId: getLeakage
+      parameters:
+        - $ref: "#/components/parameters/LeakageId"
+      responses:
+        "200":
+          description: 泄露详情元信息，不包含代码正文。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeakageSuccess"
+        "404":
+          $ref: "#/components/responses/NotFound"
     patch:
       tags:
-        - Results
-      summary: 处理泄露结果
-      description: |
-        更新单条泄露结果，并在部分状态组合下批量更新同项目结果。
-        当前 FastAPI route adapter 兼容 JSON body 和历史 form-urlencoded 请求；
-        建议客户端按 JSON body 传参。
+        - Leakages
+      summary: 更新泄露处理结果
       operationId: updateLeakage
+      parameters:
+        - $ref: "#/components/parameters/LeakageId"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/LeakagePatchRequest"
-            examples:
-              markRisk:
-                summary: 标记为风险
-                value:
-                  id: leak-001
-                  project: example/repo
-                  ignore: 0
-                  security: 0
-                  desc: 确认为有效泄露
-              markIgnoredProject:
-                summary: 忽略同项目结果
-                value:
-                  id: leak-001
-                  project: example/repo
-                  ignore: 1
-                  security: 1
-                  desc: 测试仓库，忽略
+              $ref: "#/components/schemas/LeakageUpdateRequest"
+            example:
+              security: 0
+              ignored: false
+              desc: 确认为有效泄露
+              project: example/repo
       responses:
         "200":
-          description: "处理成功。body `status=201` 是历史业务状态。"
+          description: 泄露处理结果已更新。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EmptyArrayResponse"
-              example:
-                status: 201
-                msg: 处理成功
-                result: []
-  /api/leakage/info:
+                $ref: "#/components/schemas/LeakageSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/leakages/{leakage_id}/code:
     get:
       tags:
-        - Results
-      summary: 获取泄露详情元信息
-      operationId: getLeakageInfo
-      parameters:
-        - $ref: "#/components/parameters/LeakageIdQuery"
-      responses:
-        "200":
-          description: "泄露详情元信息，排除 `code` 字段。"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LeakageInfoResponse"
-              example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  link: https://github.com/example/repo/blob/main/config.py
-                  project: example/repo
-                  project_url: https://github.com/example/repo
-                  language: Python
-                  username: example
-                  filepath: config.py
-                  filename: config.py
-                  security: 0
-                  ignore: 0
-                  tag: github-token
-                  desc: ""
-                  datetime: "2026-06-05 10:00:00"
-                  timestamp: 1780644000
-  /api/leakage/code:
-    get:
-      tags:
-        - Results
+        - Leakages
       summary: 获取泄露代码和受影响资产
-      description: "`code` 为 base64 编码内容，前端展示前需要解码。"
       operationId: getLeakageCode
       parameters:
-        - $ref: "#/components/parameters/LeakageIdQuery"
+        - $ref: "#/components/parameters/LeakageId"
       responses:
         "200":
-          description: 泄露代码和受影响资产。
+          description: 泄露代码和受影响资产。代码内容为 base64 编码字符串。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LeakageCodeResponse"
+                $ref: "#/components/schemas/LeakageCodeSuccess"
               example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  code: U0tZX0VZRV9ERVNNT19UT0tFTg==
+                data:
+                  code: U0tZX1NBTVBMRV9LRVk=
                   affect:
                     - type: file
                       value: config.py
-  /api/trend:
+                meta: {}
+                links:
+                  self: /api/v1/leakages/leak-001/code
+                  leakage: /api/v1/leakages/leak-001
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/trends:
     get:
       tags:
         - Statistics
-      summary: 获取仪表盘趋势和任务状态
+      summary: 获取仪表盘趋势和任务运行信息
       operationId: getTrend
       parameters:
         - name: tag
           in: query
           required: false
-          description: 规则标签过滤。
           schema:
             type: string
           example: github-token
       responses:
         "200":
-          description: 仪表盘统计。
+          description: 仪表盘趋势。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TrendResponse"
-              example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  all:
-                    total: 42
-                    ignore: 10
-                    risk: 8
-                  today:
-                    total: 3
-                    ignore: 1
-                    risk: 1
-                  engine:
-                    status: true
-                    last: 1780644000
-  /api/statistic:
+                $ref: "#/components/schemas/TrendSuccess"
+  /api/v1/statistics:
     get:
       tags:
         - Statistics
       summary: 获取聚合统计
-      description: |
-        `by` 当前由后端拼接进 Mongo aggregation 字段名，建议调用方只传 `tag` 或 `language`。
-        当前实现对 `tag` 调用 `len(tag)`，兼容上应传空字符串或具体标签。
-      operationId: getStatistic
+      operationId: listStatistics
       parameters:
-        - name: by
+        - name: group_by
           in: query
           required: false
           description: 聚合字段。
           schema:
             type: string
-            default: tag
             enum:
               - tag
               - language
-          example: tag
+            default: tag
         - name: tag
           in: query
           required: false
-          description: 标签过滤；建议不筛选时传空字符串。
           schema:
             type: string
-            default: ""
-          example: ""
+          example: github-token
       responses:
         "200":
           description: 聚合统计结果。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StatisticResponse"
-              example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  - _id: github-token
-                    value: 12
-  /api/setting/github:
+                $ref: "#/components/schemas/StatisticListSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /api/v1/github-accounts:
     get:
       tags:
         - Settings
       summary: 获取 GitHub 账号列表
-      description: "当前 GET 实现排除 `password`。正式响应契约不包含原始凭据。"
       operationId: listGithubAccounts
       responses:
         "200":
@@ -366,23 +302,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GithubAccountsResponse"
-              example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  - username: skyradar-bot
-                    mask_password: gh****en
-                    addat: 1780644000
-                    rate_limit: 30
-                    rate_remaining: 28
+                $ref: "#/components/schemas/GithubAccountListSuccess"
     post:
       tags:
         - Settings
       summary: 新增 GitHub 账号或 token
-      description: |
-        成功响应使用公开 projection，不返回原始 `password`。`password` 不属于正式响应契约。
-        OpenAPI 示例禁止包含真实 token。
       operationId: createGithubAccount
       requestBody:
         required: true
@@ -392,62 +316,39 @@ paths:
               $ref: "#/components/schemas/GithubAccountRequest"
             example:
               username: skyradar-bot
-              password: ghp_example_token_do_not_use
+              token: <token>
       responses:
-        "200":
-          description: "添加成功或认证失败，业务状态由 body `status` 表示。"
+        "201":
+          description: GitHub 账号已创建。
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/GithubAccountsResponse"
-                  - $ref: "#/components/schemas/EmptyArrayResponse"
-              examples:
-                created:
-                  summary: 添加成功
-                  value:
-                    status: 201
-                    msg: 添加成功
-                    result:
-                      - username: skyradar-bot
-                        mask_password: gh****en
-                        addat: 1780644000
-                        rate_limit: 30
-                        rate_remaining: 28
-                badCredentials:
-                  summary: 认证失败
-                  value:
-                    status: 401
-                    msg: 认证失败，请检查账号是否可用
-                    result: []
+                $ref: "#/components/schemas/GithubAccountSuccess"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/github-accounts/{username}:
     delete:
       tags:
         - Settings
       summary: 删除 GitHub 账号
-      description: |
-        成功删除时 body `status=404` 是历史兼容行为。
-        删除后响应使用公开 projection，不返回其他账号原始 `password`。
       operationId: deleteGithubAccount
       parameters:
         - name: username
-          in: query
+          in: path
           required: true
-          description: GitHub 用户名。
           schema:
             type: string
           example: skyradar-bot
       responses:
-        "200":
-          description: "删除成功。body `status=404` 是历史成功语义。"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GithubAccountsResponse"
-              example:
-                status: 404
-                msg: 删除成功
-                result: []
-  /api/setting/query:
+        "204":
+          description: GitHub 账号已删除；响应不返回 body。
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/search-rules:
     get:
       tags:
         - Settings
@@ -459,20 +360,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/QueryRulesResponse"
-              example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  - _id: rule-001
-                    keyword: '"ghp_" password'
-                    tag: github-token
-                    enabled: true
+                $ref: "#/components/schemas/QueryRuleListSuccess"
     post:
       tags:
         - Settings
-      summary: 新增或更新监控规则
-      operationId: saveQueryRule
+      summary: 创建监控规则
+      operationId: createQueryRule
       requestBody:
         required: true
         content:
@@ -484,190 +377,142 @@ paths:
               tag: github-token
               enabled: true
       responses:
-        "200":
-          description: 添加或更新成功。
+        "201":
+          description: 监控规则已创建。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/QueryRulesResponse"
-              examples:
-                created:
-                  value:
-                    status: 200
-                    msg: 添加成功
-                    result:
-                      - _id: rule-001
-                        keyword: '"ghp_" password'
-                        tag: github-token
-                        enabled: true
-                updated:
-                  value:
-                    status: 200
-                    msg: 更新成功
-                    result:
-                      - _id: rule-001
-                        keyword: '"ghp_" password'
-                        tag: github-token
-                        enabled: true
-    delete:
+                $ref: "#/components/schemas/QueryRuleSuccess"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/search-rules/{tag}:
+    put:
       tags:
         - Settings
-      summary: 删除监控规则和关联结果
-      description: "成功删除时 body `status=404` 是历史兼容行为。"
-      operationId: deleteQueryRule
+      summary: 更新监控规则
+      operationId: updateQueryRule
       parameters:
-        - name: _id
-          in: query
-          required: true
-          description: 规则 ID。
-          schema:
-            type: string
-          example: rule-001
-        - name: tag
-          in: query
-          required: true
-          description: 同步删除关联泄露结果使用的标签。
-          schema:
-            type: string
-          example: github-token
-      responses:
-        "200":
-          description: "删除成功。body `status=404` 是历史成功语义。"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/QueryRulesResponse"
-              example:
-                status: 404
-                msg: 删除成功
-                result: []
-  /api/setting/cron:
-    get:
-      tags:
-        - Settings
-      summary: 获取任务调度设置
-      operationId: getTaskSetting
-      responses:
-        "200":
-          description: "已配置或未配置任务设置，业务状态由 body `status` 表示。"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TaskSettingResponse"
-              examples:
-                configured:
-                  value:
-                    status: 200
-                    msg: 获取信息成功
-                    result:
-                      key: task
-                      page: 10
-                      minute: 30
-                      pid: 12345
-                      last: 1780644000
-                missing:
-                  value:
-                    status: 400
-                    msg: 请配置查询页数和周期
-                    result: null
-    post:
-      tags:
-        - Settings
-      summary: 保存任务调度设置
-      description: "保存后会尝试向已有任务 PID 发送 `SIGHUP`。"
-      operationId: saveTaskSetting
+        - $ref: "#/components/parameters/SearchRuleTag"
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TaskSettingRequest"
+              $ref: "#/components/schemas/QueryRuleRequest"
+      responses:
+        "200":
+          description: 监控规则已更新。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryRuleSuccess"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags:
+        - Settings
+      summary: 删除监控规则
+      operationId: deleteQueryRule
+      parameters:
+        - $ref: "#/components/parameters/SearchRuleTag"
+      responses:
+        "204":
+          description: 监控规则已删除；响应不返回 body。
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/task-schedules/current:
+    get:
+      tags:
+        - Settings
+      summary: 获取当前任务调度设置
+      operationId: getTaskSchedule
+      responses:
+        "200":
+          description: 当前任务调度设置。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskScheduleSuccess"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags:
+        - Settings
+      summary: 保存当前任务调度设置
+      operationId: replaceTaskSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskScheduleRequest"
             example:
               page: 10
               minute: 30
       responses:
         "200":
-          description: "设置成功。body `status=201` 是历史业务状态。"
+          description: 当前任务调度设置已保存。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SettingsArrayResponse"
-              example:
-                status: 201
-                msg: 设置成功
-                result:
-                  - key: task
-                    page: 10
-                    minute: 30
-  /api/setting/blacklist:
+                $ref: "#/components/schemas/TaskScheduleSuccess"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/blacklist-items:
     get:
       tags:
         - Settings
       summary: 获取黑名单
-      operationId: listBlacklist
+      operationId: listBlacklistItems
       responses:
         "200":
           description: 黑名单列表。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BlacklistResponse"
-              example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  - text: example.com
+                $ref: "#/components/schemas/BlacklistItemListSuccess"
     post:
       tags:
         - Settings
-      summary: 新增黑名单
+      summary: 新增黑名单项
       operationId: createBlacklistItem
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/BlacklistItem"
+              $ref: "#/components/schemas/BlacklistItemRequest"
             example:
               text: example.com
       responses:
-        "200":
-          description: "添加成功。body `status=201` 是历史业务状态。"
+        "201":
+          description: 黑名单项已创建。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BlacklistResponse"
-              example:
-                status: 201
-                msg: 添加成功
-                result:
-                  - text: example.com
+                $ref: "#/components/schemas/BlacklistItemSuccess"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/blacklist-items/{text}:
     delete:
       tags:
         - Settings
-      summary: 删除黑名单
-      description: "成功删除时 body `status=404` 是历史兼容行为。"
+      summary: 删除黑名单项
       operationId: deleteBlacklistItem
       parameters:
-        - name: text
-          in: query
-          required: true
-          description: 黑名单文本。
-          schema:
-            type: string
-          example: example.com
+        - $ref: "#/components/parameters/BlacklistText"
       responses:
-        "200":
-          description: "删除成功。body `status=404` 是历史成功语义。"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/BlacklistResponse"
-              example:
-                status: 404
-                msg: 删除成功
-                result: []
-  /api/setting/notice:
+        "204":
+          description: 黑名单项已删除；响应不返回 body。
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/notification-recipients:
     get:
       tags:
         - Settings
@@ -675,16 +520,11 @@ paths:
       operationId: listNoticeRecipients
       responses:
         "200":
-          description: 邮件接收人列表。
+          description: 邮件通知接收人列表。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NoticeRecipientsResponse"
-              example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  - mail: security@example.com
+                $ref: "#/components/schemas/NoticeRecipientListSuccess"
     post:
       tags:
         - Settings
@@ -695,80 +535,58 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NoticeRecipient"
+              $ref: "#/components/schemas/NoticeRecipientRequest"
             example:
               mail: security@example.com
       responses:
-        "200":
-          description: "添加成功。body `status=201` 是历史业务状态。"
+        "201":
+          description: 邮件通知接收人已创建。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NoticeRecipientsResponse"
-              example:
-                status: 201
-                msg: 添加成功
-                result:
-                  - mail: security@example.com
+                $ref: "#/components/schemas/NoticeRecipientSuccess"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/notification-recipients/{mail}:
     delete:
       tags:
         - Settings
       summary: 删除邮件通知接收人
-      description: "成功删除时 body `status=404` 是历史兼容行为。"
       operationId: deleteNoticeRecipient
       parameters:
         - name: mail
-          in: query
+          in: path
           required: true
-          description: 邮件地址。
           schema:
             type: string
-            format: email
           example: security@example.com
       responses:
-        "200":
-          description: "删除成功。body `status=404` 是历史成功语义。"
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/NoticeRecipientsResponse"
-              example:
-                status: 404
-                msg: 删除成功
-                result: []
-  /api/setting/mail:
+        "204":
+          description: 邮件通知接收人已删除；响应不返回 body。
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/mail-settings/current:
     get:
       tags:
         - Settings
       summary: 获取 SMTP 配置
-      description: "响应使用公开 projection 排除 `password`。SMTP 密码或授权码仅允许作为写入字段。"
       operationId: getMailSetting
       responses:
         "200":
-          description: SMTP 配置。
+          description: SMTP 配置，不包含 SMTP 密码。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MailSettingResponse"
-              example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  key: mail
-                  from: skyradar@example.com
-                  host: smtp.example.com
-                  port: 587
-                  tls: true
-                  username: skyradar@example.com
-                  domain: https://skyradar.example.com
-                  enabled: true
-                  test: false
-    post:
+                $ref: "#/components/schemas/MailSettingSuccess"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
       tags:
         - Settings
       summary: 保存 SMTP 配置
-      description: "请求可包含 SMTP `password`，成功响应排除原始 `password`。"
-      operationId: saveMailSetting
+      operationId: replaceMailSetting
       requestBody:
         required: true
         content:
@@ -781,300 +599,320 @@ paths:
               port: 587
               tls: true
               username: skyradar@example.com
-              password: example-password
+              password: <password>
               domain: https://skyradar.example.com
               enabled: true
-              test: false
       responses:
         "200":
-          description: "设置成功。body `status=201` 是历史业务状态。"
+          description: SMTP 配置已保存，不返回 SMTP 密码。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MailSettingResponse"
-              example:
-                status: 201
-                msg: 设置成功
-                result:
-                  key: mail
-                  from: skyradar@example.com
-                  host: smtp.example.com
-                  port: 587
-                  tls: true
-                  username: skyradar@example.com
-                  domain: https://skyradar.example.com
-                  enabled: true
-                  test: false
-  /api/setting/webhook:
+                $ref: "#/components/schemas/MailSettingSuccess"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/webhooks:
     get:
       tags:
         - Settings
       summary: 获取 webhook 配置
-      description: GET 响应不回显完整 webhook URL；敏感 query 参数或路径 token 以 `***` 掩码，并提供 `webhook_hash` 供安全删除。
-      operationId: listWebhookSettings
+      operationId: listWebhooks
       responses:
         "200":
-          description: webhook 配置列表。
+          description: webhook 配置列表。响应只包含脱敏 URL 和稳定 ID。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/WebhookSettingsResponse"
-              example:
-                status: 200
-                msg: 获取信息成功
-                result:
-                  - provider: dingtalk
-                    webhook_url: https://oapi.dingtalk.com/robot/send?access_token=***
-                    webhook_hash: 0ea7d7db61142f53ae07ad67c1af3e54
-                    domain: https://skyradar.example.com
-                    enabled: true
-                    has_secret: true
-                  - provider: feishu
-                    webhook_url: https://open.feishu.cn/open-apis/bot/v2/hook/***
-                    webhook_hash: 8d625cca9e083ea1d61a0951b087a061
-                    domain: https://skyradar.example.com
-                    enabled: true
-                    has_secret: true
+                $ref: "#/components/schemas/WebhookListSuccess"
     post:
       tags:
         - Settings
-      summary: 保存或测试 webhook 配置
-      description: |
-        当前支持 `provider=dingtalk` 和 `provider=feishu`。
-        DingTalk 地址必须为 `https://oapi.dingtalk.com/...`。
-        Feishu 地址必须为 `https://open.feishu.cn/open-apis/bot/v2/hook/...`。
-        `test=true` 时只发送测试消息，不保存配置。
-      operationId: saveWebhookSetting
+      summary: 创建 webhook 配置
+      operationId: createWebhook
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/WebhookSettingRequest"
-            examples:
-              save:
-                value:
-                  provider: dingtalk
-                  webhook_url: https://oapi.dingtalk.com/robot/send?access_token=example
-                  secret: SEC-example
-                  domain: https://skyradar.example.com
-                  enabled: true
-                  test: false
-              test:
-                value:
-                  provider: feishu
-                  webhook_url: https://open.feishu.cn/open-apis/bot/v2/hook/example
-                  secret: SEC-example
-                  domain: https://skyradar.example.com
-                  enabled: true
-                  test: true
+              $ref: "#/components/schemas/WebhookRequest"
+            example:
+              provider: dingtalk
+              webhook_url: https://oapi.dingtalk.com/robot/send?access_token=<token>
+              secret: <secret>
+              domain: https://skyradar.example.com
+              enabled: true
       responses:
-        "200":
-          description: "保存、测试或校验结果，业务状态由 body `status` 表示。"
+        "201":
+          description: webhook 配置已创建。
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/EmptyArrayResponse"
-                  - $ref: "#/components/schemas/CountResponse"
-              examples:
-                saved:
-                  summary: 保存成功
-                  value:
-                    status: 201
-                    msg: 设置成功
-                    result: 1
-                invalid:
-                  summary: 地址非法
-                  value:
-                    status: 400
-                    msg: 错误的 webhook 地址
-                    result: []
-                testSent:
-                  summary: 测试发送成功
-                  value:
-                    status: 201
-                    msg: 已发送，请前往目标群查看
-                    result: []
+                $ref: "#/components/schemas/WebhookSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/webhooks/{webhook_id}:
     delete:
       tags:
         - Settings
       summary: 删除 webhook 配置
-      operationId: deleteWebhookSetting
+      operationId: deleteWebhook
       parameters:
-        - name: webhook_url
-          in: query
-          required: false
-          description: 完整 webhook URL。当前前端优先使用 `webhook_hash`。
+        - name: webhook_id
+          in: path
+          required: true
           schema:
             type: string
-            format: uri
-          example: https://oapi.dingtalk.com/robot/send?access_token=example
-        - name: webhook_hash
-          in: query
-          required: false
-          description: GET 响应返回的 webhook URL hash，用于避免在前端状态或请求日志中携带完整 URL。
-          schema:
-            type: string
-          example: 0ea7d7db61142f53ae07ad67c1af3e54
+          example: webhook-001
       responses:
-        "200":
-          description: "删除结果。该接口成功时 body `status=200`，未找到时 `status=404`。"
+        "204":
+          description: webhook 配置已删除；响应不返回 body。
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/webhook-tests:
+    post:
+      tags:
+        - Settings
+      summary: 发送 webhook 测试任务
+      operationId: createWebhookTest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookRequest"
+      responses:
+        "201":
+          description: webhook 测试消息已发送。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EmptyArrayResponse"
-              examples:
-                deleted:
-                  value:
-                    status: 200
-                    msg: 删除成功
-                    result: []
-                missing:
-                  value:
-                    status: 404
-                    msg: 删除失败
-                    result: []
+                $ref: "#/components/schemas/WebhookTestSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
 components:
   parameters:
-    LeakageStatusQuery:
-      name: status
+    Page:
+      name: page
       in: query
-      required: true
-      description: |
-        JSON 字符串形式的 Mongo 查询条件。必须作为字符串传递，例如 `{"security":0,"ignore":0}`。
-        其他历史示例：`{"security":0,"desc":{"$exists":true}}`、`{"security":1}`。
-        当前 FastAPI route 要求该参数必传；缺失时返回 HTTP 422。
+      required: false
       schema:
-        type: string
-      example: '{"security":0,"ignore":0}'
-    LeakageIdQuery:
-      name: id
+        type: integer
+        minimum: 1
+        default: 1
+      example: 1
+    PageSize:
+      name: page_size
       in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+    LeakageId:
+      name: leakage_id
+      in: path
       required: true
-      description: 泄露结果 ID。
       schema:
         type: string
       example: leak-001
+    SearchRuleTag:
+      name: tag
+      in: path
+      required: true
+      schema:
+        type: string
+      example: github-token
+    BlacklistText:
+      name: text
+      in: path
+      required: true
+      schema:
+        type: string
+      example: obsolete-secret
+  responses:
+    BadRequest:
+      description: 请求格式或参数无法处理。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: 未认证或外部凭据不可用。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: 资源不存在。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: 资源状态冲突。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: 请求语义校验失败。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ServiceUnavailable:
+      description: 依赖服务不可用或系统暂不可用。
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
-    ApiResponse:
+    ApiSuccess:
       type: object
       required:
-        - status
-        - msg
-        - result
+        - data
       properties:
-        status:
-          type: integer
-          description: 历史业务状态，不等同于 HTTP status code。
-          example: 200
-        msg:
-          type: string
-          example: 获取信息成功
-        result:
+        data:
           nullable: true
-          description: 具体响应数据，按接口变化。
-    EmptyArrayResponse:
-      allOf:
-        - $ref: "#/components/schemas/ApiResponse"
-        - type: object
-          properties:
-            result:
-              type: array
-              items: {}
-              example: []
-    CountResponse:
-      allOf:
-        - $ref: "#/components/schemas/ApiResponse"
-        - type: object
-          properties:
-            result:
-              type: integer
-              example: 1
-    HealthResponse:
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          type: object
+          additionalProperties:
+            type: string
+    ErrorResponse:
       type: object
       required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          pattern: "^[a-z0-9_]+$"
+          example: invalid_request
+        message:
+          type: string
+          example: 请求参数无效
+        detail:
+          type: object
+          additionalProperties: true
+          example:
+            field: page_size
+            reason: must be between 1 and 100
+        request_id:
+          type: string
+          nullable: true
+          example: req_01HZYXAMPLE
+    PageMeta:
+      type: object
+      required:
+        - page
+        - page_size
+        - total
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        page_size:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+    HealthSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Health"
+    Health:
+      type: object
+      required:
+        - api
         - github
         - mongodb
+        - redis
       properties:
+        api:
+          $ref: "#/components/schemas/HealthItem"
         github:
-          oneOf:
-            - type: boolean
-            - type: string
-          description: GitHub 可达性或错误字符串。
-          example: true
+          $ref: "#/components/schemas/HealthItem"
         mongodb:
-          oneOf:
-            - type: object
-              additionalProperties: true
-            - type: string
-          description: MongoDB 状态对象或错误字符串。
-          example:
-            ok: 1
-    LeakageListResponse:
+          $ref: "#/components/schemas/HealthItem"
+        redis:
+          $ref: "#/components/schemas/HealthItem"
+    HealthItem:
+      type: object
+      required:
+        - ok
+      properties:
+        ok:
+          type: boolean
+        message:
+          type: string
+        latency_ms:
+          type: integer
+          minimum: 0
+    LeakageListSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
-          required:
-            - total
           properties:
-            result:
+            data:
               type: array
               items:
-                $ref: "#/components/schemas/LeakageListItem"
-            total:
-              type: integer
-              example: 1
-    LeakageInfoResponse:
+                $ref: "#/components/schemas/Leakage"
+            meta:
+              $ref: "#/components/schemas/PageMeta"
+    LeakageSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
           properties:
-            result:
-              nullable: true
-              allOf:
-                - $ref: "#/components/schemas/LeakageInfo"
-    LeakageCodeResponse:
-      allOf:
-        - $ref: "#/components/schemas/ApiResponse"
-        - type: object
-          properties:
-            result:
-              nullable: true
-              allOf:
-                - $ref: "#/components/schemas/LeakageCode"
-    LeakageListItem:
+            data:
+              $ref: "#/components/schemas/Leakage"
+    Leakage:
       type: object
-      additionalProperties: true
-      description: 列表结果来自 Mongo document，历史数据可能缺字段。
+      required:
+        - _id
+        - link
+        - project
+        - security
+        - ignore
+        - tag
+        - datetime
       properties:
         _id:
           type: string
-          example: leak-001
         link:
           type: string
           format: uri
         project:
           type: string
-          example: example/repo
         project_url:
           type: string
           format: uri
         language:
           type: string
-          example: Python
         username:
           type: string
-          example: example
         avatar_url:
           type: string
           format: uri
         filepath:
           type: string
-          example: config.py
         filename:
           type: string
-          example: config.py
         security:
           type: integer
           enum:
@@ -1087,81 +925,62 @@ components:
             - 1
         tag:
           type: string
-          example: github-token
         desc:
           type: string
         datetime:
           type: string
-          example: "2026-06-05 10:00:00"
-        timestamp:
+    LeakageUpdateRequest:
+      type: object
+      required:
+        - security
+      properties:
+        project:
+          type: string
+        security:
           type: integer
-          example: 1780644000
-    LeakageInfo:
+          enum:
+            - 0
+            - 1
+        ignored:
+          type: boolean
+        desc:
+          type: string
+    LeakageCodeSuccess:
       allOf:
-        - $ref: "#/components/schemas/LeakageListItem"
-      description: "详情元信息；当前查询排除 `_id` 和 `code`，可能包含 `affect`。"
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/LeakageCode"
     LeakageCode:
       type: object
-      additionalProperties: true
+      required:
+        - code
+        - affect
       properties:
         code:
           type: string
-          description: base64 编码代码内容。
-          example: U0tZX0VZRV9ERVNNT19UT0tFTg==
+          description: 代码内容。
         affect:
-          description: 受影响资产，历史数据形态可能为数组或对象。
-          oneOf:
-            - type: array
-              items:
-                $ref: "#/components/schemas/AffectedAsset"
-            - type: object
-              additionalProperties: true
+          type: array
+          items:
+            $ref: "#/components/schemas/AffectedAsset"
     AffectedAsset:
       type: object
       additionalProperties: true
       properties:
         type:
           type: string
-          example: file
         value:
           type: string
-          example: config.py
-    LeakagePatchRequest:
-      type: object
-      required:
-        - id
-        - project
-        - ignore
-        - security
-      properties:
-        id:
-          type: string
-          example: leak-001
-        project:
-          type: string
-          example: example/repo
-        ignore:
-          type: integer
-          enum:
-            - 0
-            - 1
-        security:
-          type: integer
-          enum:
-            - 0
-            - 1
-        desc:
-          type: string
-          default: ""
-          example: 确认为有效泄露
-    TrendResponse:
+    TrendSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
           properties:
-            result:
-              $ref: "#/components/schemas/TrendResult"
-    TrendResult:
+            data:
+              $ref: "#/components/schemas/Trend"
+    Trend:
       type: object
       required:
         - all
@@ -1173,75 +992,76 @@ components:
         today:
           $ref: "#/components/schemas/TrendCounter"
         engine:
-          $ref: "#/components/schemas/EngineStatus"
+          $ref: "#/components/schemas/Engine"
     TrendCounter:
       type: object
       properties:
         total:
           type: integer
-        ignore:
+        ignored:
           type: integer
-        risk:
+        confirmed:
           type: integer
-    EngineStatus:
+    Engine:
       type: object
       properties:
-        status:
+        running:
           type: boolean
-        last:
-          oneOf:
-            - type: integer
-            - type: string
-    StatisticResponse:
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+    StatisticListSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
           properties:
-            result:
+            data:
               type: array
               items:
-                $ref: "#/components/schemas/StatisticItem"
-    StatisticItem:
+                $ref: "#/components/schemas/Statistic"
+    Statistic:
       type: object
+      required:
+        - _id
+        - value
       properties:
         _id:
+          type: string
           nullable: true
-          oneOf:
-            - type: string
-            - type: integer
         value:
           type: integer
-    GithubAccountsResponse:
+    GithubAccountListSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
           properties:
-            result:
+            data:
               type: array
               items:
                 $ref: "#/components/schemas/GithubAccount"
+    GithubAccountSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/GithubAccount"
     GithubAccount:
       type: object
-      additionalProperties: true
-      description: |
-        GitHub 账号响应对象。正式契约不包含 `password`；
-        客户端和日志也必须持续过滤原始凭据。
+      required:
+        - username
       properties:
         username:
           type: string
-          example: skyradar-bot
         mask_password:
           type: string
-          example: gh****en
         addat:
           type: integer
-          example: 1780644000
         rate_limit:
           type: integer
-          example: 30
         rate_remaining:
           type: integer
-          example: 28
     GithubAccountRequest:
       type: object
       required:
@@ -1250,37 +1070,42 @@ components:
       properties:
         username:
           type: string
-          example: skyradar-bot
         password:
           type: string
           format: password
-          description: 历史字段名；实际可能是 GitHub token。
-          example: ghp_example_token_do_not_use
-    QueryRulesResponse:
+          writeOnly: true
+    QueryRuleListSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
           properties:
-            result:
+            data:
               type: array
               items:
                 $ref: "#/components/schemas/QueryRule"
+    QueryRuleSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/QueryRule"
     QueryRule:
       type: object
-      additionalProperties: true
+      required:
+        - _id
+        - keyword
+        - tag
+        - enabled
       properties:
         _id:
           type: string
-          example: rule-001
         keyword:
           type: string
-          example: '"ghp_" password'
         tag:
           type: string
-          example: github-token
         enabled:
           type: boolean
-          example: true
     QueryRuleRequest:
       type: object
       required:
@@ -1294,67 +1119,59 @@ components:
         enabled:
           type: boolean
           default: true
-    TaskSettingResponse:
+    TaskScheduleSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
           properties:
-            result:
-              nullable: true
-              allOf:
-                - $ref: "#/components/schemas/TaskSetting"
-    TaskSetting:
+            data:
+              $ref: "#/components/schemas/TaskSchedule"
+    TaskSchedule:
       type: object
-      additionalProperties: true
+      required:
+        - page
+        - minute
       properties:
-        key:
-          type: string
-          example: task
         page:
           type: integer
-          example: 10
+          minimum: 1
         minute:
           type: integer
-          example: 30
+          minimum: 1
         pid:
           type: integer
-          example: 12345
+          nullable: true
         last:
-          oneOf:
-            - type: integer
-            - type: string
-    TaskSettingRequest:
+          type: integer
+          nullable: true
+    TaskScheduleRequest:
       type: object
+      required:
+        - page
+        - minute
       properties:
         page:
           type: integer
-          default: 1
-          example: 10
+          minimum: 1
         minute:
           type: integer
-          default: 10
-          example: 30
-    SettingsArrayResponse:
+          minimum: 1
+    BlacklistItemListSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
           properties:
-            result:
-              type: array
-              items:
-                $ref: "#/components/schemas/SettingDocument"
-    SettingDocument:
-      type: object
-      additionalProperties: true
-    BlacklistResponse:
-      allOf:
-        - $ref: "#/components/schemas/ApiResponse"
-        - type: object
-          properties:
-            result:
+            data:
               type: array
               items:
                 $ref: "#/components/schemas/BlacklistItem"
+    BlacklistItemSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/BlacklistItem"
     BlacklistItem:
       type: object
       required:
@@ -1362,16 +1179,29 @@ components:
       properties:
         text:
           type: string
-          example: example.com
-    NoticeRecipientsResponse:
+    BlacklistItemRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+    NoticeRecipientListSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
           properties:
-            result:
+            data:
               type: array
               items:
                 $ref: "#/components/schemas/NoticeRecipient"
+    NoticeRecipientSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/NoticeRecipient"
     NoticeRecipient:
       type: object
       required:
@@ -1380,24 +1210,28 @@ components:
         mail:
           type: string
           format: email
-          example: security@example.com
-    MailSettingResponse:
+    NoticeRecipientRequest:
+      type: object
+      required:
+        - mail
+      properties:
+        mail:
+          type: string
+          format: email
+    MailSettingSuccess:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/ApiSuccess"
         - type: object
           properties:
-            result:
-              nullable: true
-              allOf:
-                - $ref: "#/components/schemas/MailSetting"
+            data:
+              $ref: "#/components/schemas/MailSetting"
     MailSetting:
       type: object
-      additionalProperties: true
-      description: "SMTP 配置响应对象。正式响应契约不包含 `password`；请求可通过 MailSettingRequest 写入密码或授权码。"
+      required:
+        - from
+        - host
+        - port
       properties:
-        key:
-          type: string
-          example: mail
         from:
           type: string
           format: email
@@ -1413,65 +1247,48 @@ components:
           type: string
           format: uri
         enabled:
-          type: boolean
-        test:
           type: boolean
     MailSettingRequest:
-      type: object
-      properties:
-        from:
-          type: string
-          format: email
-        host:
-          type: string
-        port:
-          type: integer
-        tls:
-          type: boolean
-          default: false
-        username:
-          type: string
-        password:
-          type: string
-          format: password
-        domain:
-          type: string
-          format: uri
-        enabled:
-          type: boolean
-          default: false
-        test:
-          type: boolean
-          default: false
-    WebhookSettingsResponse:
       allOf:
-        - $ref: "#/components/schemas/ApiResponse"
+        - $ref: "#/components/schemas/MailSetting"
         - type: object
           properties:
-            result:
+            password:
+              type: string
+              format: password
+              writeOnly: true
+    WebhookListSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
               type: array
               items:
-                $ref: "#/components/schemas/WebhookSetting"
-    WebhookSetting:
+                $ref: "#/components/schemas/Webhook"
+    WebhookSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Webhook"
+    Webhook:
       type: object
-      additionalProperties: true
+      required:
+        - webhook_id
+        - provider
+        - webhook_url
       properties:
+        webhook_id:
+          type: string
         provider:
           type: string
           enum:
             - dingtalk
             - feishu
-          description: webhook provider。
-          example: dingtalk
         webhook_url:
           type: string
-          format: uri
-          description: 已掩码的 webhook URL；GET 响应不回显完整 token/signature。
-          example: https://oapi.dingtalk.com/robot/send?access_token=***
-        webhook_hash:
-          type: string
-          description: 完整 webhook URL 的 MD5，用于删除时定位配置。
-          example: 0ea7d7db61142f53ae07ad67c1af3e54
         domain:
           type: string
           format: uri
@@ -1479,33 +1296,48 @@ components:
           type: boolean
         has_secret:
           type: boolean
-          description: 是否已配置加签 secret。GET 响应不回显 secret 明文。
-    WebhookSettingRequest:
+    WebhookRequest:
       type: object
       required:
         - provider
         - webhook_url
-        - secret
       properties:
         provider:
           type: string
           enum:
             - dingtalk
             - feishu
-          example: dingtalk
         webhook_url:
           type: string
           format: uri
-          example: https://oapi.dingtalk.com/robot/send?access_token=example
+          writeOnly: true
         secret:
           type: string
-          description: webhook 加签 secret；DingTalk 用于 URL query 的 timestamp/sign，Feishu 用于请求体 timestamp/sign。
+          format: password
+          writeOnly: true
         domain:
           type: string
           format: uri
         enabled:
           type: boolean
-          default: false
-        test:
+          default: true
+    WebhookTestSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/WebhookTest"
+    WebhookTest:
+      type: object
+      required:
+        - delivered
+        - provider
+      properties:
+        delivered:
           type: boolean
-          default: false
+        provider:
+          type: string
+          enum:
+            - dingtalk
+            - feishu

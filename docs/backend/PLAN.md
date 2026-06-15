@@ -55,9 +55,9 @@
 
 验收：
 
-- 新增状态不改变现有 response shape。
+- 新增状态不破坏 `/api/v1/*` REST response envelope。
 - 重复 finding 只更新内部字段。
-- `security`、`ignore` 和 `desc` 查询与处理语义保持兼容。
+- 列表筛选继续使用显式 REST query 参数，不恢复 JSON 字符串过滤。
 
 ### P2 - Target/revision 模型
 
@@ -69,7 +69,7 @@
 
 验收：
 
-- 新模型不影响现有 `/api/leakage` 查询、结果处理和通知链路。
+- 新模型不影响现有 `/api/v1/leakages` 查询、结果处理和通知链路。
 - 新 collection、索引和 API 边界先通过 ADR 确认。
 
 ### P3 - Event/webhook 增量扫描

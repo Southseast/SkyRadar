@@ -23,7 +23,7 @@ SWAGGER_HTML = """<!doctype html>
   <script>
     window.onload = function () {
       window.ui = SwaggerUIBundle({
-        url: "/api/openapi.json",
+        url: "/api/v1/openapi.json",
         dom_id: "#swagger-ui",
       });
     };

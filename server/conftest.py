@@ -84,6 +84,9 @@ class ClientAdapter:
     def patch(self, url, **kwargs):
         return self._request("patch", url, **kwargs)
 
+    def put(self, url, **kwargs):
+        return self._request("put", url, **kwargs)
+
     def delete(self, url, **kwargs):
         return self._request("delete", url, **kwargs)
 

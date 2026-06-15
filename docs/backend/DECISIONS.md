@@ -39,7 +39,7 @@
 
 背景：
 
-SkyRadar 的 `/api/*` 存在当前前端依赖的兼容行为，例如 body `status` 与 HTTP status 分离、部分删除接口使用兼容 body、`/api/leakage` 的 `status` 查询参数使用 JSON 字符串。FastAPI 自动 schema 不能未经审查直接代表这些兼容语义。
+SkyRadar 的 HTTP API 已收敛到最终 `/api/v1/*` RESTful 契约。路径命名、HTTP status、分页参数、成功 envelope 和错误 envelope 需要一个人工审查后的机器可读源，避免 FastAPI 自动 schema 与前后端约定漂移。
 
 决策：
 
@@ -47,7 +47,7 @@ SkyRadar 的 `/api/*` 存在当前前端依赖的兼容行为，例如 body `sta
 
 影响：
 
-- API 行为变化必须同步更新 `DESIGN.md` 的兼容语义和 `docs/api/openapi.yaml`。
+- API 行为变化必须同步更新 `DESIGN.md` 的 REST 契约语义和 `docs/api/openapi.yaml`。
 - OpenAPI 示例必须脱敏。
 - `scripts/backend_openapi_check.py` 和 `scripts/backend_route_coverage.py` 作为必跑门禁。
 
@@ -98,7 +98,7 @@ Swagger UI、OpenAPI JSON 和接口示例会暴露 endpoint、参数、错误行
 
 决策：
 
-`/api/docs`、`/api/redoc` 和 `/api/openapi.json` 生产默认关闭。仅当 `SKYRADAR_API_DOCS_ENABLED=true` 时启用，并且应部署在内网、VPN、认证代理或本地开发环境之后。
+`/api/v1/docs`、`/api/v1/redoc` 和 `/api/v1/openapi.json` 生产默认关闭。仅当 `SKYRADAR_API_DOCS_ENABLED=true` 时启用，并且应部署在内网、VPN、认证代理或本地开发环境之后。
 
 影响：
 

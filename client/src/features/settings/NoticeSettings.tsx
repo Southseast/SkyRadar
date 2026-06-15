@@ -97,17 +97,17 @@ export function NoticeSettings() {
 
     await runAction("add-mail", async () => {
       const response = await addNoticeMail(mail)
-      setMails(response.result ?? [])
+      setMails(await fetchNoticeMails())
       setMailInput("")
-      setNotice(response.msg ?? "添加成功")
+      setNotice(response.message ?? "添加成功")
     })
   }
 
   async function handleDeleteMail(mail: string) {
     await runAction(`delete-mail-${mail}`, async () => {
       const response = await deleteNoticeMail(mail)
-      setMails(response.result ?? [])
-      setNotice(response.msg ?? "删除成功")
+      setMails((current) => current.filter((item) => item.mail !== mail))
+      setNotice(response.message ?? "删除成功")
     })
   }
 
@@ -118,8 +118,8 @@ export function NoticeSettings() {
         ...smtp,
         port: Number(smtp.port) || 25,
       })
-      if (response.result) setSmtp({ ...defaultSmtp, ...response.result })
-      setNotice(response.msg ?? "设置成功")
+      if (response.data) setSmtp({ ...defaultSmtp, ...response.data })
+      setNotice(response.message ?? "设置成功")
     })
   }
 
@@ -144,7 +144,7 @@ export function NoticeSettings() {
       const response = await saveWebhookSetting({ ...webhookForm, webhook_url: webhookUrl, secret })
       setWebhookSettings(await fetchWebhookSettings())
       setWebhookForm(defaultWebhook)
-      setNotice(response.msg ?? "设置成功")
+      setNotice(response.message ?? "设置成功")
     })
   }
 
@@ -166,20 +166,20 @@ export function NoticeSettings() {
 
     await runAction("test-webhook", async () => {
       const response = await testWebhookSetting({ ...webhookForm, webhook_url: webhookUrl, secret })
-      setNotice(response.msg ?? "测试消息已发送")
+      setNotice(response.message ?? "测试消息已发送")
     })
   }
 
   async function handleDeleteWebhook(webhook: WebhookSetting) {
-    const deleteKey = webhook.webhook_hash ?? webhook.webhook_url
+    const deleteKey = webhook.webhook_id ?? webhook.webhook_url
     await runAction(`delete-webhook-${deleteKey}`, async () => {
       const response = await deleteWebhookSetting(webhook)
       setWebhookSettings((current) =>
         current.filter((item) =>
-          webhook.webhook_hash ? item.webhook_hash !== webhook.webhook_hash : item.webhook_url !== webhook.webhook_url
+          webhook.webhook_id ? item.webhook_id !== webhook.webhook_id : item.webhook_url !== webhook.webhook_url
         )
       )
-      setNotice(response.msg ?? "删除成功")
+      setNotice(response.message ?? "删除成功")
     })
   }
 

@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api/client"
+import { apiClient, getResponseData, getResponseMeta, toMutationResult } from "@/lib/api/client"
 import { endpoints } from "@/lib/api/endpoints"
 import type {
   AffectedAsset,
@@ -8,7 +8,6 @@ import type {
   LeakageDetailForm,
   LeakageListParams,
   LeakagePatchPayload,
-  PaginatedResponse,
   StatisticItem,
   TrendData,
 } from "@/types/api"
@@ -29,63 +28,63 @@ const defaultTrend: TrendData = {
 }
 
 export async function fetchTrend(tag?: string) {
-  const response = await apiClient.get<ApiResponse<TrendData>>(endpoints.trend, {
+  const response = await apiClient.get<ApiResponse<TrendData>>(endpoints.trends, {
     params: { tag: tag || undefined },
   })
 
-  return normalizeTrend(response.data.result)
+  return normalizeTrend(getResponseData(response.data))
 }
 
 export async function fetchStatistics(by: "tag" | "language", tag?: string) {
-  const response = await apiClient.get<ApiResponse<unknown>>(endpoints.statistic, {
+  const response = await apiClient.get<ApiResponse<unknown>>(endpoints.statistics, {
     params: { by, tag: tag || "" },
   })
 
-  return normalizeList<StatisticItem>(response.data.result)
+  return normalizeList<StatisticItem>(getResponseData(response.data))
 }
 
 export async function fetchLeakages(params: LeakageListParams) {
-  const response = await apiClient.get<PaginatedResponse<unknown>>(endpoints.leakage, {
+  const response = await apiClient.get<ApiResponse<unknown>>(endpoints.leakages, {
     params: {
-      status: JSON.stringify(params.status),
+      security: params.status.security,
+      desc_exists: params.status.desc?.$exists,
       tag: params.tag || undefined,
       language: params.language || undefined,
-      limit: params.limit,
-      from: params.from,
+      page: params.page,
+      page_size: params.page_size,
     },
   })
+  const meta = getResponseMeta(response.data)
 
   return {
-    result: normalizeList<Leakage>(response.data.result).map(normalizeLeakage),
-    total: response.data.total ?? 0,
-    msg: response.data.msg,
+    result: normalizeList<Leakage>(getResponseData(response.data)).map(normalizeLeakage),
+    total: toNumber(meta.total, 0),
   }
 }
 
 export async function patchLeakage(payload: LeakagePatchPayload) {
-  const response = await apiClient.patch<ApiResponse<unknown>>(endpoints.leakage, payload)
-  return response.data
+  const { id, ...body } = payload
+  const response = await apiClient.patch<ApiResponse<unknown>>(endpoints.leakage(id), body)
+  return toMutationResult(getResponseData(response.data), "处理成功")
 }
 
 export async function fetchLeakageInfo(id: string) {
-  const response = await apiClient.get<ApiResponse<Leakage | null>>(endpoints.leakageInfo, {
-    params: { id },
-  })
+  const response = await apiClient.get<ApiResponse<Leakage | null>>(endpoints.leakage(id))
+  const data = getResponseData(response.data)
 
-  return response.data.result ? normalizeLeakage(response.data.result) : null
+  return data ? normalizeLeakage(data) : null
 }
 
 export async function fetchLeakageCode(id: string) {
-  const response = await apiClient.get<ApiResponse<LeakageCode | null>>(endpoints.leakageCode, {
-    params: { id },
-  })
+  const response = await apiClient.get<ApiResponse<LeakageCode | null>>(endpoints.leakageCode(id))
 
-  return normalizeLeakageCode(response.data.result)
+  return normalizeLeakageCode(getResponseData(response.data))
 }
 
 export async function patchLeakageDetail(payload: LeakageDetailForm) {
-  const response = await apiClient.patch<ApiResponse<unknown>>(endpoints.leakage, payload)
-  return response.data
+  const { id, ...body } = payload
+  const response = await apiClient.patch<ApiResponse<unknown>>(endpoints.leakage(id), body)
+  return toMutationResult(getResponseData(response.data), "处理成功")
 }
 
 function normalizeTrend(raw: TrendData | null | undefined): TrendData {

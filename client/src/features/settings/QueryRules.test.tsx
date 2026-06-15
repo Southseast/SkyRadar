@@ -24,46 +24,39 @@ describe("QueryRules", () => {
   })
 
   it("loads rules, saves changes, toggles enabled, and deletes with query params", async () => {
-    mockedFetchQueryRules.mockResolvedValue([
-      {
-        _id: "rule-1",
-        tag: "credential",
-        keyword: "password OR token",
-        enabled: true,
-        last: 1_780_000_000,
-        api_total: 42,
-        found_total: 7,
-      },
-    ])
-    mockedSaveQueryRule
-      .mockResolvedValueOnce({
-        status: 200,
-        msg: "更新成功",
-        result: [
-          {
-            _id: "rule-1",
-            tag: "credential",
-            keyword: "password OR token",
-            enabled: false,
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        status: 200,
-        msg: "更新成功",
-        result: [
-          {
-            _id: "rule-1",
-            tag: "credential",
-            keyword: "secret",
-            enabled: false,
-          },
-        ],
-      })
+    mockedFetchQueryRules
+      .mockResolvedValueOnce([
+        {
+          _id: "rule-1",
+          tag: "credential",
+          keyword: "password OR token",
+          enabled: true,
+          last: 1_780_000_000,
+          api_total: 42,
+          found_total: 7,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          _id: "rule-1",
+          tag: "credential",
+          keyword: "password OR token",
+          enabled: false,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          _id: "rule-1",
+          tag: "credential",
+          keyword: "secret",
+          enabled: false,
+        },
+      ])
+    mockedSaveQueryRule.mockResolvedValue({
+      message: "更新成功",
+    })
     mockedDeleteQueryRule.mockResolvedValue({
-      status: 404,
-      msg: "删除成功",
-      result: [],
+      message: "删除成功",
     })
 
     render(

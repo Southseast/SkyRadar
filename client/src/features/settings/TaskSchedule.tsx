@@ -35,15 +35,15 @@ export function TaskSchedule() {
         const response = await fetchTaskSetting()
         if (!mounted) return
 
-        if (response.result) {
-          setSetting(response.result)
+        if (response.data) {
+          setSetting(response.data)
           setForm({
-            minute: response.result.minute,
-            page: response.result.page,
+            minute: response.data.minute,
+            page: response.data.page,
           })
         } else {
           setSetting(null)
-          setNotice(response.msg ?? "请配置查询页数和周期")
+          setNotice(response.message ?? "请配置查询页数和周期")
         }
       } catch (requestError) {
         if (mounted) {
@@ -77,7 +77,7 @@ export function TaskSchedule() {
       const response = await saveTaskSetting(payload)
       setForm(payload)
       setSetting((current) => ({ key: "task", pid: current?.pid, last: current?.last, ...payload }))
-      setNotice(response.msg ?? "设置成功")
+      setNotice(response.message ?? "设置成功")
     } catch (requestError) {
       setError(getErrorMessage(requestError))
     } finally {

@@ -23,16 +23,12 @@ describe("Blacklist", () => {
   })
 
   it("loads, adds, and deletes blacklist items with text payload", async () => {
-    mockedFetchBlacklist.mockResolvedValue([{ text: "demo" }])
+    mockedFetchBlacklist.mockResolvedValueOnce([{ text: "demo" }]).mockResolvedValueOnce([{ text: "secret" }])
     mockedAddBlacklistItem.mockResolvedValue({
-      status: 201,
-      msg: "添加成功",
-      result: [{ text: "secret" }],
+      message: "添加成功",
     })
     mockedDeleteBlacklistItem.mockResolvedValue({
-      status: 404,
-      msg: "删除成功",
-      result: [],
+      message: "删除成功",
     })
 
     render(<Blacklist />)

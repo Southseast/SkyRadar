@@ -35,7 +35,7 @@ def _project(document, projection):
     return projected
 
 
-def test_cron_get_contract_returns_configured_task_setting(client, monkeypatch):
+def test_task_settings_get_returns_current_setting(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
@@ -49,63 +49,52 @@ def test_cron_get_contract_returns_configured_task_setting(client, monkeypatch):
 
     monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
 
-    response = client.get("/api/setting/cron")
+    response = client.get("/api/v1/task-schedules/current")
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "status": 200,
-        "msg": "获取信息成功",
-        "result": {"key": "task", "page": 10, "minute": 30, "pid": 12345},
+        "data": {"key": "task", "page": 10, "minute": 30, "pid": 12345}
     }
     assert captured == {"filters": {"key": "task"}, "projection": {"_id": 0}}
 
 
-def test_cron_get_contract_returns_business_400_when_missing(client, monkeypatch):
+def test_task_settings_get_returns_404_when_missing(client, monkeypatch):
     from api.settings import repository as setting
-
-    captured = {}
 
     class FakeSettingCollection:
         def find_one(self, filters, projection):
-            captured["filters"] = filters
-            captured["projection"] = projection
             return None
 
     monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
 
-    response = client.get("/api/setting/cron")
+    response = client.get("/api/v1/task-schedules/current")
 
-    assert response.status_code == 200
+    assert response.status_code == 404
     assert response.get_json() == {
-        "status": 400,
-        "msg": "请配置查询页数和周期",
-        "result": None,
+        "error": "settings_error",
+        "message": "task settings are not configured",
     }
-    assert captured == {"filters": {"key": "task"}, "projection": {"_id": 0}}
 
 
-def test_cron_post_contract_upserts_and_sends_sighup(client, monkeypatch):
+def test_task_settings_put_upserts_and_sends_sighup(client, monkeypatch):
     from api.settings import repository as setting
     from api.settings import service as settings_service
 
     captured = {}
-    stored_documents = [{"key": "task", "pid": 12345}]
+    stored_document = {"key": "task", "pid": 12345}
 
     class FakeSettingCollection:
         def update_many(self, filters, update, upsert=False):
             captured["update_filters"] = filters
             captured["update"] = update
             captured["upsert"] = upsert
-            stored_documents[0].update(update["$set"])
+            stored_document.update(update["$set"])
 
         def find_one(self, filters, projection=None):
-            captured.setdefault("find_one_filters", []).append(filters)
-            return stored_documents[0]
-
-        def find(self, filters, projection):
-            captured["find_filters"] = filters
-            captured["projection"] = projection
-            return [_project(document, projection) for document in stored_documents]
+            captured.setdefault("find_one_calls", []).append((filters, projection))
+            if projection is None:
+                return stored_document
+            return _project(stored_document, projection)
 
     def fake_kill(pid, sig):
         captured["kill"] = (pid, sig)
@@ -113,26 +102,23 @@ def test_cron_post_contract_upserts_and_sends_sighup(client, monkeypatch):
     monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
     monkeypatch.setattr(settings_service.os, "kill", fake_kill)
 
-    response = client.post("/api/setting/cron", json={"page": 20, "minute": 5})
+    response = client.put("/api/v1/task-schedules/current", json={"page": 20, "minute": 5})
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "status": 201,
-        "msg": "设置成功",
-        "result": [{"key": "task", "pid": 12345, "page": 20, "minute": 5}],
+        "data": {"key": "task", "pid": 12345, "page": 20, "minute": 5}
     }
     assert captured["update_filters"] == {"key": "task"}
-    assert captured["update"] == {
-        "$set": {"key": "task", "page": 20, "minute": 5}
-    }
+    assert captured["update"] == {"$set": {"key": "task", "page": 20, "minute": 5}}
     assert captured["upsert"] is True
-    assert captured["find_one_filters"] == [{"key": "task"}]
     assert captured["kill"] == (12345, signal.SIGHUP)
-    assert captured["find_filters"] == {}
-    assert captured["projection"] == {"_id": 0}
+    assert captured["find_one_calls"] == [
+        ({"key": "task"}, None),
+        ({"key": "task"}, {"_id": 0}),
+    ]
 
 
-def test_query_get_contract_sorts_enabled_desc(client, monkeypatch):
+def test_search_rules_get_sorts_enabled_desc(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
@@ -150,27 +136,23 @@ def test_query_get_contract_sorts_enabled_desc(client, monkeypatch):
 
     monkeypatch.setattr(setting, "query_col", FakeQueryCollection())
 
-    response = client.get("/api/setting/query")
+    response = client.get("/api/v1/search-rules")
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "status": 200,
-        "msg": "获取信息成功",
-        "result": [
+        "data": [
             {"_id": "query-1", "keyword": "token", "tag": "token", "enabled": True},
             {"_id": "query-2", "keyword": "key", "tag": "key", "enabled": False},
-        ],
+        ]
     }
     assert captured["filters"] == {}
     assert cursor.calls == [("sort", "enabled", -1)]
 
 
-def test_query_post_contract_inserts_new_rule_and_sorts_result(client, monkeypatch):
+def test_search_rule_post_inserts_new_rule(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
-    stored_documents = []
-    cursor = FakeCursor(stored_documents)
 
     class FakeQueryCollection:
         def count_documents(self, filters):
@@ -179,40 +161,28 @@ def test_query_post_contract_inserts_new_rule_and_sorts_result(client, monkeypat
 
         def insert_one(self, document):
             captured["inserted"] = dict(document)
-            stored_documents.append(dict(document))
 
-        def find(self, filters):
-            captured["find_filters"] = filters
-            return cursor
-
-    fake_collection = FakeQueryCollection()
-    monkeypatch.setattr(setting, "query_col", fake_collection)
+    monkeypatch.setattr(setting, "query_col", FakeQueryCollection())
 
     response = client.post(
-        "/api/setting/query",
+        "/api/v1/search-rules",
         json={"keyword": "github token", "tag": "github-token", "enabled": True},
     )
 
     body = response.get_json()
-    assert response.status_code == 200
-    assert body["status"] == 200
-    assert body["msg"] == "添加成功"
-    assert body["result"] == [captured["inserted"]]
+    assert response.status_code == 201
+    assert body["data"] == captured["inserted"]
+    assert body["data"]["keyword"] == "github token"
+    assert body["data"]["tag"] == "github-token"
+    assert body["data"]["enabled"] is True
+    assert "_id" in body["data"]
     assert captured["count_filters"] == {"tag": "github-token"}
-    assert captured["inserted"]["keyword"] == "github token"
-    assert captured["inserted"]["tag"] == "github-token"
-    assert captured["inserted"]["enabled"] is True
-    assert "_id" in captured["inserted"]
-    assert captured["find_filters"] == {}
-    assert cursor.calls == [("sort", "enabled", -1)]
 
 
-def test_query_post_accepts_form_urlencoded_contract(client, monkeypatch):
+def test_search_rule_post_accepts_form_urlencoded(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
-    stored_documents = []
-    cursor = FakeCursor(stored_documents)
 
     class FakeQueryCollection:
         def count_documents(self, filters):
@@ -221,39 +191,48 @@ def test_query_post_accepts_form_urlencoded_contract(client, monkeypatch):
 
         def insert_one(self, document):
             captured["inserted"] = dict(document)
-            stored_documents.append(dict(document))
 
-        def find(self, filters):
-            captured["find_filters"] = filters
-            return cursor
-
-    fake_collection = FakeQueryCollection()
-    monkeypatch.setattr(setting, "query_col", fake_collection)
+    monkeypatch.setattr(setting, "query_col", FakeQueryCollection())
 
     response = client.post(
-        "/api/setting/query",
+        "/api/v1/search-rules",
         data={"keyword": "github token", "tag": "github-token-form", "enabled": "true"},
     )
 
-    body = response.get_json()
-    assert response.status_code == 200
-    assert body["status"] == 200
-    assert body["msg"] == "添加成功"
-    assert captured["inserted"]["keyword"] == "github token"
-    assert captured["inserted"]["tag"] == "github-token-form"
-    assert captured["inserted"]["enabled"] is True
+    assert response.status_code == 201
+    assert response.get_json()["data"]["tag"] == "github-token-form"
+    assert response.get_json()["data"]["enabled"] is True
     assert captured["count_filters"] == {"tag": "github-token-form"}
-    assert captured["find_filters"] == {}
-    assert cursor.calls == [("sort", "enabled", -1)]
 
 
-def test_query_post_contract_updates_existing_rule_and_sorts_result(client, monkeypatch):
+def test_search_rule_post_returns_409_for_duplicate_tag(client, monkeypatch):
+    from api.settings import repository as setting
+
+    class FakeQueryCollection:
+        def count_documents(self, filters):
+            return 1
+
+        def insert_one(self, document):
+            raise AssertionError("duplicate tags must not be inserted")
+
+    monkeypatch.setattr(setting, "query_col", FakeQueryCollection())
+
+    response = client.post(
+        "/api/v1/search-rules",
+        json={"keyword": "github token", "tag": "github-token", "enabled": True},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json() == {
+        "error": "settings_error",
+        "message": "search rule tag already exists",
+    }
+
+
+def test_search_rule_put_updates_existing_rule(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
-    cursor = FakeCursor(
-        [{"_id": "query-1", "keyword": "github token", "tag": "github-token", "enabled": False}]
-    )
 
     class FakeQueryCollection:
         def count_documents(self, filters):
@@ -264,76 +243,92 @@ def test_query_post_contract_updates_existing_rule_and_sorts_result(client, monk
             captured["update_filters"] = filters
             captured["update"] = update
 
-        def find(self, filters):
-            captured["find_filters"] = filters
-            return cursor
-
     monkeypatch.setattr(setting, "query_col", FakeQueryCollection())
 
-    response = client.post(
-        "/api/setting/query",
-        json={"keyword": "github token", "tag": "github-token", "enabled": False},
+    response = client.put(
+        "/api/v1/search-rules/github-token",
+        json={"keyword": "changed token", "enabled": False},
     )
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "status": 200,
-        "msg": "更新成功",
-        "result": [
-            {
-                "_id": "query-1",
-                "keyword": "github token",
-                "tag": "github-token",
-                "enabled": False,
-            }
-        ],
+        "data": {"keyword": "changed token", "tag": "github-token", "enabled": False}
     }
     assert captured["count_filters"] == {"tag": "github-token"}
     assert captured["update_filters"] == {"tag": "github-token"}
     assert captured["update"] == {
-        "$set": {"keyword": "github token", "tag": "github-token", "enabled": False}
+        "$set": {"keyword": "changed token", "tag": "github-token", "enabled": False}
     }
-    assert captured["find_filters"] == {}
-    assert cursor.calls == [("sort", "enabled", -1)]
 
 
-def test_blacklist_post_contract_strips_spaces_and_returns_list(client, monkeypatch):
+def test_search_rule_delete_removes_rule_and_matching_results(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
-    stored_documents = []
+
+    class FakeQueryCollection:
+        def delete_many(self, filters):
+            captured["query_delete_filters"] = filters
+            return FakeDeleteResult(1)
+
+    class FakeResultCollection:
+        def delete_many(self, filters):
+            captured["result_delete_filters"] = filters
+
+    monkeypatch.setattr(setting, "query_col", FakeQueryCollection())
+    monkeypatch.setattr(setting, "result_col", FakeResultCollection())
+
+    response = client.delete("/api/v1/search-rules/obsolete-token")
+
+    assert response.status_code == 204
+    assert response.data == b""
+    assert captured == {
+        "query_delete_filters": {"tag": "obsolete-token"},
+        "result_delete_filters": {"tag": "obsolete-token"},
+    }
+
+
+def test_blacklist_post_strips_spaces_and_returns_created_item(client, monkeypatch):
+    from api.settings import repository as setting
+
+    captured = {}
 
     class FakeBlacklistCollection:
         def replace_one(self, filters, document, upsert=False):
             captured["replace_filters"] = filters
             captured["saved_document"] = document
             captured["upsert"] = upsert
-            stored_documents.append(dict(document))
 
-        def find(self, filters, projection):
-            captured["find_filters"] = filters
-            captured["projection"] = projection
-            return [_project(document, projection) for document in stored_documents]
+    monkeypatch.setattr(setting, "blacklist_col", FakeBlacklistCollection())
 
-    fake_collection = FakeBlacklistCollection()
-    monkeypatch.setattr(setting, "blacklist_col", fake_collection)
+    response = client.post("/api/v1/blacklist-items", json={"text": " blocked value "})
 
-    response = client.post("/api/setting/blacklist", json={"text": " blocked value "})
-
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "status": 201,
-        "msg": "添加成功",
-        "result": [{"text": "blockedvalue"}],
-    }
+    assert response.status_code == 201
+    assert response.get_json() == {"data": {"text": "blockedvalue"}}
     assert captured["replace_filters"] == {"_id": "42ec172949110ef0976d07c6009ecb0d"}
     assert captured["upsert"] is True
     assert captured["saved_document"]["text"] == "blockedvalue"
-    assert captured["find_filters"] == {}
-    assert captured["projection"] == {"_id": 0}
 
 
-def test_notice_get_contract_returns_recipient_list(client, monkeypatch):
+def test_blacklist_delete_uses_path_value(client, monkeypatch):
+    from api.settings import repository as setting
+
+    captured = {}
+
+    class FakeBlacklistCollection:
+        def delete_many(self, filters):
+            captured["delete_filters"] = filters
+            return FakeDeleteResult(1)
+
+    monkeypatch.setattr(setting, "blacklist_col", FakeBlacklistCollection())
+
+    response = client.delete("/api/v1/blacklist-items/obsolete-secret")
+
+    assert response.status_code == 204
+    assert captured == {"delete_filters": {"text": "obsolete-secret"}}
+
+
+def test_notification_recipients_get_returns_recipient_list(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
@@ -346,55 +341,35 @@ def test_notice_get_contract_returns_recipient_list(client, monkeypatch):
 
     monkeypatch.setattr(setting, "notice_col", FakeNoticeCollection())
 
-    response = client.get("/api/setting/notice")
+    response = client.get("/api/v1/notification-recipients")
 
     assert response.status_code == 200
-    assert response.get_json() == {
-        "status": 200,
-        "msg": "获取信息成功",
-        "result": [{"mail": "security@example.com"}],
-    }
+    assert response.get_json() == {"data": [{"mail": "security@example.com"}]}
     assert captured == {"filters": {}, "projection": {"_id": 0}}
 
 
-def test_notice_post_contract_adds_recipient_from_json_without_external_calls(
-    client, monkeypatch
-):
+def test_notification_recipient_post_adds_normalized_mail(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
-    stored_documents = []
 
     class FakeNoticeCollection:
         def insert_one(self, document):
             captured["inserted"] = dict(document)
-            stored_documents.append(dict(document))
-
-        def find(self, filters, projection):
-            captured["find_filters"] = filters
-            captured["projection"] = projection
-            return [_project(document, projection) for document in stored_documents]
 
     monkeypatch.setattr(setting, "notice_col", FakeNoticeCollection())
 
     response = client.post(
-        "/api/setting/notice", json={"mail": " security @ example.com "}
+        "/api/v1/notification-recipients",
+        json={"mail": " security @ example.com "},
     )
 
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "status": 201,
-        "msg": "添加成功",
-        "result": [{"mail": "security@example.com"}],
-    }
+    assert response.status_code == 201
+    assert response.get_json() == {"data": {"mail": "security@example.com"}}
     assert captured["inserted"]["mail"] == "security@example.com"
-    assert captured["find_filters"] == {}
-    assert captured["projection"] == {"_id": 0}
 
 
-def test_notice_delete_contract_preserves_query_args_and_404_body_status(
-    client, monkeypatch
-):
+def test_notification_recipient_delete_uses_path_mail(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
@@ -402,30 +377,17 @@ def test_notice_delete_contract_preserves_query_args_and_404_body_status(
     class FakeNoticeCollection:
         def delete_many(self, filters):
             captured["delete_filters"] = filters
-
-        def find(self, filters, projection):
-            captured["find_filters"] = filters
-            captured["projection"] = projection
-            return [{"mail": "remaining@example.com"}]
+            return FakeDeleteResult(1)
 
     monkeypatch.setattr(setting, "notice_col", FakeNoticeCollection())
 
-    response = client.delete("/api/setting/notice?mail=previous@example.com")
+    response = client.delete("/api/v1/notification-recipients/previous@example.com")
 
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "status": 404,
-        "msg": "删除成功",
-        "result": [{"mail": "remaining@example.com"}],
-    }
-    assert captured == {
-        "delete_filters": {"mail": "previous@example.com"},
-        "find_filters": {},
-        "projection": {"_id": 0},
-    }
+    assert response.status_code == 204
+    assert captured == {"delete_filters": {"mail": "previous@example.com"}}
 
 
-def test_webhook_get_contract_returns_provider_list(client, monkeypatch):
+def test_webhook_get_returns_masked_provider_list(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
@@ -447,24 +409,20 @@ def test_webhook_get_contract_returns_provider_list(client, monkeypatch):
 
     monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
 
-    response = client.get("/api/setting/webhook")
+    response = client.get("/api/v1/webhooks")
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "status": 200,
-        "msg": "获取信息成功",
-        "result": [
+        "data": [
             {
                 "provider": "dingtalk",
                 "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=***",
-                "webhook_hash": hashlib.md5(
-                    str(webhook_url).encode("utf-8")
-                ).hexdigest(),
+                "webhook_id": hashlib.md5(str(webhook_url).encode("utf-8")).hexdigest(),
                 "domain": "https://skyradar.example.com",
                 "enabled": True,
                 "has_secret": True,
             }
-        ],
+        ]
     }
     assert captured == {
         "filters": {"webhook": {"$exists": True}, "provider": {"$exists": True}},
@@ -472,7 +430,7 @@ def test_webhook_get_contract_returns_provider_list(client, monkeypatch):
     }
 
 
-def test_webhook_post_contract_rejects_invalid_url(client, monkeypatch):
+def test_webhook_post_rejects_invalid_url(client, monkeypatch):
     from api.settings import repository as setting
     from integrations import dingtalk as dingtalk_integration
 
@@ -490,112 +448,25 @@ def test_webhook_post_contract_rejects_invalid_url(client, monkeypatch):
     monkeypatch.setattr(dingtalk_integration.requests, "post", fake_requests_post)
 
     response = client.post(
-        "/api/setting/webhook",
+        "/api/v1/webhooks",
         json={
             "webhook_url": "http://example.com/robot/send",
             "provider": "dingtalk",
-            "domain": "https://skyradar.example.com",
-            "enabled": True,
-            "test": False,
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "status": 400,
-        "msg": "错误的 webhook 地址",
-        "result": [],
-    }
-    assert captured["requests_post_calls"] == 0
-
-    response = client.post(
-        "/api/setting/webhook",
-        json={
-            "webhook_url": "https://example.com/robot/send",
-            "provider": "dingtalk",
             "secret": "SEC-example",
             "domain": "https://skyradar.example.com",
             "enabled": True,
-            "test": False,
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 400
     assert response.get_json() == {
-        "status": 400,
-        "msg": "错误的钉钉 webhook 地址",
-        "result": [],
+        "error": "settings_error",
+        "message": "webhook_url must be an https URL",
     }
     assert captured["requests_post_calls"] == 0
 
 
-def test_webhook_post_contract_rejects_unknown_provider(client, monkeypatch):
-    from api.settings import repository as setting
-
-    class FakeSettingCollection:
-        def update_one(self, *args, **kwargs):
-            raise AssertionError("invalid webhook provider must not be saved")
-
-    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
-
-    response = client.post(
-        "/api/setting/webhook",
-        json={
-            "provider": "slack",
-            "webhook_url": "https://hooks.slack.example/services/example",
-            "secret": "SEC-example",
-            "domain": "https://skyradar.example.com",
-            "enabled": True,
-            "test": False,
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "status": 400,
-        "msg": "不支持的 webhook 类型",
-        "result": [],
-    }
-
-
-def test_webhook_post_contract_requires_secret(client, monkeypatch):
-    from api.settings import repository as setting
-    from integrations import dingtalk as dingtalk_integration
-
-    captured = {"requests_post_calls": 0}
-
-    class FakeSettingCollection:
-        def update_one(self, *args, **kwargs):
-            raise AssertionError("webhook URL without secret must not be saved")
-
-    def fake_requests_post(*args, **kwargs):
-        captured["requests_post_calls"] += 1
-        raise AssertionError("webhook URL without secret must not be tested")
-
-    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
-    monkeypatch.setattr(dingtalk_integration.requests, "post", fake_requests_post)
-
-    response = client.post(
-        "/api/setting/webhook",
-        json={
-            "provider": "dingtalk",
-            "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=example",
-            "domain": "https://skyradar.example.com",
-            "enabled": True,
-            "test": False,
-        },
-    )
-
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "status": 400,
-        "msg": "webhook 必须配置加签 Secret",
-        "result": [],
-    }
-    assert captured["requests_post_calls"] == 0
-
-
-def test_webhook_post_contract_saves_valid_url_without_test_call(client, monkeypatch):
+def test_webhook_post_saves_valid_url_without_test_call(client, monkeypatch):
     from api.settings import repository as setting
     from integrations import dingtalk as dingtalk_integration
 
@@ -613,27 +484,34 @@ def test_webhook_post_contract_saves_valid_url_without_test_call(client, monkeyp
 
     def fake_requests_post(*args, **kwargs):
         captured["requests_post_calls"] += 1
-        raise AssertionError("saving with test=false must not call requests.post")
+        raise AssertionError("saving webhook settings must not call requests.post")
 
-    fake_collection = FakeSettingCollection()
-    monkeypatch.setattr(setting, "setting_col", fake_collection)
+    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
     monkeypatch.setattr(dingtalk_integration.requests, "post", fake_requests_post)
 
     webhook_url = "https://oapi.dingtalk.com/robot/send?access_token=example"
     response = client.post(
-        "/api/setting/webhook",
+        "/api/v1/webhooks",
         json={
             "provider": "dingtalk",
             "webhook_url": webhook_url,
             "secret": "SEC-example",
             "domain": "https://skyradar.example.com",
             "enabled": True,
-            "test": False,
         },
     )
 
-    assert response.status_code == 200
-    assert response.get_json() == {"status": 201, "msg": "设置成功", "result": 1}
+    assert response.status_code == 201
+    assert response.get_json() == {
+        "data": {
+            "provider": "dingtalk",
+            "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=***",
+            "webhook_id": hashlib.md5(str(webhook_url).encode("utf-8")).hexdigest(),
+            "domain": "https://skyradar.example.com",
+            "enabled": True,
+            "has_secret": True,
+        }
+    }
     assert captured["update_filters"] == {"webhook": webhook_url}
     assert captured["update"] == {
         "$set": {
@@ -649,7 +527,7 @@ def test_webhook_post_contract_saves_valid_url_without_test_call(client, monkeyp
     assert captured["requests_post_calls"] == 0
 
 
-def test_webhook_post_contract_tests_dingtalk_provider(client, monkeypatch):
+def test_webhook_delivery_test_posts_dingtalk_provider(client, monkeypatch):
     from integrations import dingtalk as dingtalk_integration
 
     captured = {}
@@ -670,22 +548,21 @@ def test_webhook_post_contract_tests_dingtalk_provider(client, monkeypatch):
     monkeypatch.setattr(dingtalk_integration.requests, "post", fake_requests_post)
 
     response = client.post(
-        "/api/setting/webhook",
+        "/api/v1/webhook-tests",
         json={
             "provider": "dingtalk",
             "webhook_url": webhook_url,
             "secret": "SEC-example",
             "domain": "https://skyradar.example.com",
             "enabled": True,
-            "test": True,
         },
     )
 
     parsed_url = urlparse(captured["url"])
     query = parse_qs(parsed_url.query)
 
-    assert response.status_code == 200
-    assert response.get_json() == {"status": 201, "msg": "已发送，请前往目标群查看", "result": []}
+    assert response.status_code == 201
+    assert response.get_json() == {"data": {"delivered": True, "provider": "dingtalk"}}
     assert parsed_url.scheme == "https"
     assert parsed_url.netloc == "oapi.dingtalk.com"
     assert parsed_url.path == "/robot/send"
@@ -698,7 +575,7 @@ def test_webhook_post_contract_tests_dingtalk_provider(client, monkeypatch):
     assert captured["timeout"] == 10
 
 
-def test_webhook_post_contract_tests_feishu_provider(client, monkeypatch):
+def test_webhook_delivery_test_posts_feishu_provider(client, monkeypatch):
     from integrations import feishu as feishu_integration
 
     captured = {}
@@ -718,19 +595,18 @@ def test_webhook_post_contract_tests_feishu_provider(client, monkeypatch):
     monkeypatch.setattr(feishu_integration.requests, "post", fake_requests_post)
 
     response = client.post(
-        "/api/setting/webhook",
+        "/api/v1/webhook-tests",
         json={
             "provider": "feishu",
             "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/example",
             "secret": "SEC-example",
             "domain": "https://skyradar.example.com",
             "enabled": True,
-            "test": True,
         },
     )
 
-    assert response.status_code == 200
-    assert response.get_json() == {"status": 201, "msg": "已发送，请前往目标群查看", "result": []}
+    assert response.status_code == 201
+    assert response.get_json() == {"data": {"delivered": True, "provider": "feishu"}}
     assert captured["url"] == "https://open.feishu.cn/open-apis/bot/v2/hook/example"
     assert captured["json"]["msg_type"] == "text"
     assert captured["json"]["timestamp"]
@@ -738,34 +614,12 @@ def test_webhook_post_contract_tests_feishu_provider(client, monkeypatch):
     assert captured["timeout"] == 10
 
 
-def test_webhook_delete_contract_returns_success_when_found(client, monkeypatch):
+def test_webhook_delete_accepts_webhook_id(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
     webhook_url = "https://oapi.dingtalk.com/robot/send?access_token=example"
-
-    class FakeSettingCollection:
-        def delete_one(self, filters):
-            captured["delete_filters"] = filters
-            return FakeDeleteResult(1)
-
-    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
-
-    response = client.delete(
-        "/api/setting/webhook",
-        query_string={"webhook_url": webhook_url},
-    )
-
-    assert response.status_code == 200
-    assert response.get_json() == {"status": 200, "msg": "删除成功", "result": []}
-    assert captured["delete_filters"] == {"webhook": webhook_url}
-
-
-def test_webhook_delete_contract_accepts_webhook_hash(client, monkeypatch):
-    from api.settings import repository as setting
-
-    captured = {}
-    webhook_url = "https://oapi.dingtalk.com/robot/send?access_token=example"
+    webhook_id = hashlib.md5(str(webhook_url).encode("utf-8")).hexdigest()
 
     class FakeSettingCollection:
         def find(self, filters, projection):
@@ -779,40 +633,10 @@ def test_webhook_delete_contract_accepts_webhook_hash(client, monkeypatch):
 
     monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
 
-    response = client.delete(
-        "/api/setting/webhook",
-        query_string={
-            "webhook_hash": hashlib.md5(str(webhook_url).encode("utf-8")).hexdigest()
-        },
-    )
+    response = client.delete(f"/api/v1/webhooks/{webhook_id}")
 
-    assert response.status_code == 200
-    assert response.get_json() == {"status": 200, "msg": "删除成功", "result": []}
+    assert response.status_code == 204
+    assert response.data == b""
     assert captured["find_filters"] == {"webhook": {"$exists": True}, "provider": {"$exists": True}}
     assert captured["projection"] == {"_id": 0}
-    assert captured["delete_filters"] == {"webhook": webhook_url}
-
-
-def test_webhook_delete_contract_returns_business_404_when_missing(
-    client, monkeypatch
-):
-    from api.settings import repository as setting
-
-    captured = {}
-    webhook_url = "https://oapi.dingtalk.com/robot/send?access_token=missing"
-
-    class FakeSettingCollection:
-        def delete_one(self, filters):
-            captured["delete_filters"] = filters
-            return FakeDeleteResult(0)
-
-    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
-
-    response = client.delete(
-        "/api/setting/webhook",
-        query_string={"webhook_url": webhook_url},
-    )
-
-    assert response.status_code == 200
-    assert response.get_json() == {"status": 404, "msg": "删除失败", "result": []}
     assert captured["delete_filters"] == {"webhook": webhook_url}

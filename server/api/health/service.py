@@ -5,17 +5,31 @@
 # @Description : Implements health check service logic.
 
 import requests
+from redis import Redis
 
 from core.config import load_settings
 from core.database import create_mongo_client
 
 
+def _healthy(message="ok"):
+    return {"ok": True, "message": message}
+
+
+def _unhealthy(error):
+    return {"ok": False, "message": str(error)}
+
+
 def health_status():
+    status = {"api": _healthy("ok")}
+
     try:
         github_response = requests.get("https://api.github.com/", timeout=30)
-        github = github_response.status_code < 500
+        status["github"] = {
+            "ok": github_response.status_code < 500,
+            "message": f"HTTP {github_response.status_code}",
+        }
     except Exception as error:
-        github = str(error)
+        status["github"] = _unhealthy(error)
 
     try:
         settings = load_settings()
@@ -25,8 +39,26 @@ def health_status():
             socketTimeoutMS=50,
             serverSelectionTimeoutMS=500,
         )
-        mongodb = client.get_database(settings.mongodb_database).command("ping")
+        ping = client.get_database(settings.mongodb_database).command("ping")
+        status["mongodb"] = {
+            "ok": ping.get("ok") in (1, 1.0, True),
+            "message": "ping ok",
+        }
     except Exception as error:
-        mongodb = str(error)
+        status["mongodb"] = _unhealthy(error)
 
-    return {"github": github, "mongodb": mongodb}
+    try:
+        redis = Redis(
+            host=settings.redis_host,
+            port=settings.redis_port,
+            db=settings.redis_result_cache_db,
+            decode_responses=True,
+        )
+        status["redis"] = {
+            "ok": bool(redis.ping()),
+            "message": "ping ok",
+        }
+    except Exception as error:
+        status["redis"] = _unhealthy(error)
+
+    return status

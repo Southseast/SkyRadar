@@ -61,6 +61,10 @@ def delete_query(query_id):
     return query_col.delete_many({"_id": query_id})
 
 
+def delete_query_by_tag(tag):
+    return query_col.delete_many({"tag": tag})
+
+
 def delete_results_by_tag(tag):
     return result_col.delete_many({"tag": tag})
 
@@ -109,12 +113,12 @@ def count_webhook_setting(webhook_url):
     return setting_col.count_documents({"webhook": webhook_url})
 
 
-def find_webhook_url_by_hash(webhook_hash):
+def find_webhook_url_by_id(webhook_id):
     for item in list_webhook_settings():
         webhook = item.get("webhook")
         if (
             webhook
-            and hashlib.md5(str(webhook).encode("utf-8")).hexdigest() == webhook_hash
+            and hashlib.md5(str(webhook).encode("utf-8")).hexdigest() == webhook_id
         ):
             return webhook
     return None

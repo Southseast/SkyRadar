@@ -1,11 +1,26 @@
 export interface ApiResponse<T> {
-  status?: number
-  msg?: string
-  result: T
+  data: T
+  meta?: ApiMeta
+  links?: Record<string, string | null | undefined>
 }
 
-export interface PaginatedResponse<T> extends ApiResponse<T[]> {
-  total: number
+export interface ApiMeta {
+  page?: number
+  page_size?: number
+  total?: number
+  [key: string]: unknown
+}
+
+export interface ApiErrorBody {
+  error?: string
+  message?: string
+  detail?: unknown
+  request_id?: string
+}
+
+export interface ApiMutationResult<T = unknown> {
+  data?: T
+  message?: string
 }
 
 export interface AffectedAsset {
@@ -42,8 +57,8 @@ export interface LeakageListParams {
   status: LeakageQueryStatus
   tag?: string
   language?: string
-  limit: number
-  from: number
+  page: number
+  page_size: number
 }
 
 export interface LeakagePatchPayload {
@@ -143,7 +158,7 @@ export type WebhookProvider = "dingtalk" | "feishu"
 export interface WebhookSetting {
   provider: WebhookProvider
   webhook_url: string
-  webhook_hash?: string
+  webhook_id?: string
   secret?: string
   has_secret?: boolean
   domain?: string

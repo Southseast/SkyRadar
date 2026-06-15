@@ -53,8 +53,8 @@ export function ResultsPage() {
         status: resultStatusToApiStatus(queryState.status),
         tag: queryState.tag,
         language: queryState.language,
-        limit: queryState.limit,
-        from: queryState.page,
+        page: queryState.page,
+        page_size: queryState.limit,
       })
       setResults(response.result)
       setTotal(response.total)

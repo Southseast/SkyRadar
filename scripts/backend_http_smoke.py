@@ -31,7 +31,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description=(
             "Send real HTTP requests to a running SkyRadar backend. "
-            "The default check validates GET /api/health."
+            "The default check validates GET /api/v1/health."
         )
     )
     parser.add_argument(
@@ -44,8 +44,8 @@ def parse_args():
         action="append",
         default=[],
         help=(
-            "Extra read-only endpoint to request after /api/health. "
-            "Repeat for multiple endpoints, for example --endpoint /api/statistic."
+            "Extra read-only endpoint to request after /api/v1/health. "
+            "Repeat for multiple endpoints, for example --endpoint /api/v1/statistics."
         ),
     )
     parser.add_argument(
@@ -122,24 +122,29 @@ def validate_health(result):
     if result["errors"] and body is None:
         return result
     if not isinstance(body, dict):
-        result["errors"].append("/api/health response must be a JSON object")
+        result["errors"].append("/api/v1/health response must be a JSON object")
         return result
 
-    if "github" not in body:
-        result["errors"].append("/api/health response is missing github")
-    if "mongodb" not in body:
-        result["errors"].append("/api/health response is missing mongodb")
+    data = body.get("data")
+    if not isinstance(data, dict):
+        result["errors"].append("/api/v1/health response is missing data object")
+        return result
 
-    github = body.get("github")
-    if github is not True:
+    if "github" not in data:
+        result["errors"].append("/api/v1/health response is missing github")
+    if "mongodb" not in data:
+        result["errors"].append("/api/v1/health response is missing mongodb")
+
+    github = data.get("github")
+    if not isinstance(github, dict) or github.get("ok") is not True:
         result["errors"].append("GitHub health check failed: %r" % github)
 
-    mongodb = body.get("mongodb")
+    mongodb = data.get("mongodb")
     if isinstance(mongodb, str):
         result["errors"].append("MongoDB health check failed: %s" % mongodb)
     elif isinstance(mongodb, dict):
         ok_value = mongodb.get("ok")
-        if ok_value is not None and ok_value not in (1, 1.0, True):
+        if ok_value is not True:
             result["errors"].append("MongoDB health check returned ok=%r" % ok_value)
     else:
         result["errors"].append(
@@ -160,11 +165,11 @@ def validate_generic_read_only(result):
 def run_checks(base_url, endpoints, timeout):
     checks = []
 
-    health = request_json(base_url, "/api/health", timeout)
+    health = request_json(base_url, "/api/v1/health", timeout)
     checks.append(validate_health(health))
 
     for endpoint in endpoints:
-        if endpoint == "/api/health":
+        if endpoint == "/api/v1/health":
             continue
         result = request_json(base_url, endpoint, timeout)
         checks.append(validate_generic_read_only(result))
@@ -184,9 +189,10 @@ def print_human(base_url, checks):
         label = "PASS" if check["ok"] else "FAIL"
         status = check["status"] if check["status"] is not None else "n/a"
         logger.info("[%s] GET %s (HTTP %s)" % (label, check["endpoint"], status))
-        if check["endpoint"] == "/api/health" and isinstance(check.get("json"), dict):
-            logger.info("  github: %r" % check["json"].get("github"))
-            logger.info("  mongodb: %r" % check["json"].get("mongodb"))
+        if check["endpoint"] == "/api/v1/health" and isinstance(check.get("json"), dict):
+            data = check["json"].get("data") if isinstance(check["json"].get("data"), dict) else {}
+            logger.info("  github: %r" % data.get("github"))
+            logger.info("  mongodb: %r" % data.get("mongodb"))
         for error in check["errors"]:
             logger.info("  error: %s" % error)
         logger.info("")

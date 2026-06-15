@@ -15,8 +15,8 @@
 - 当前前端源码位于 `client/`，技术栈为 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui。
 - 核心工作流已落地：结果仪表盘、结果表格、泄露详情、设置页和通知配置。
 - 架构为 `AppShell` + page routes + feature modules + typed API adapter。
-- API 兼容逻辑集中在 `client/src/lib/api/*`。
-- Docker/nginx 静态资源目标使用 `client/dist`，`/api` 反向代理行为保持稳定。
+- API adapter 集中在 `client/src/lib/api/*`，已收敛到 `/api/v1/*` REST response envelope。
+- Docker/nginx 静态资源目标使用 `client/dist`，`/api/v1/*` 反向代理行为保持稳定。
 
 ## 下一步
 
@@ -31,8 +31,10 @@
 
 ## 最近验证
 
-- `npm run check`
-- `scripts/frontend_camoufox_smoke.py`
-- `scripts/frontend_release_gate_smoke.py`
-- Docker/nginx 静态资源与 `/api` 代理 smoke
-- 真实 GitHub 搜索、PAT 配置和 DingTalk webhook smoke
+- `cd client && npm run test -- --run` 通过，10 个 test files、24 tests。
+- `cd client && npm run lint` 通过。
+- `cd client && npm run build` 通过。
+- `git diff --check` 通过。
+- `python3 scripts/frontend_camoufox_smoke.py --base-url http://127.0.0.1:18081 --timeout 20 --json` 通过，覆盖 `/`、`/setting`、各设置页签和 `/api/v1/health`，视口为 `1440x900`、`1280x720`、`768x1024`、`375x812`。
+- Docker/nginx 真实代理已通过 backend compose smoke 验证。
+- release gate 真实数据抽样和真实外部通知链路本轮未运行，待目标环境数据与凭据复验。

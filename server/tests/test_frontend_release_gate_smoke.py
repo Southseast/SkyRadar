@@ -26,9 +26,9 @@ def test_release_gate_health_requires_body_subchecks(monkeypatch):
         smoke,
         "http_get_json",
         lambda *args, **kwargs: {
-            "url": "http://skyradar.example.com/api/health",
+            "url": "http://skyradar.example.com/api/v1/health",
             "status": 200,
-            "payload": {"github": True, "mongodb": {"ok": 1.0}},
+            "payload": {"data": {"github": {"ok": True}, "mongodb": {"ok": True}}},
         },
     )
 
@@ -45,16 +45,16 @@ def test_release_gate_health_fails_when_mongodb_subcheck_is_unhealthy(monkeypatc
         smoke,
         "http_get_json",
         lambda *args, **kwargs: {
-            "url": "http://skyradar.example.com/api/health",
+            "url": "http://skyradar.example.com/api/v1/health",
             "status": 200,
-            "payload": {"github": True, "mongodb": {"ok": 0.0}},
+            "payload": {"data": {"github": {"ok": True}, "mongodb": {"ok": False}}},
         },
     )
 
     result = smoke.check_health("http://skyradar.example.com", timeout=1)
 
     assert result["ok"] is False
-    assert result["errors"] == ["mongodb ok is not 1.0"]
+    assert result["errors"] == ["mongodb ok is not true"]
 
 
 def test_release_gate_leakage_list_uses_frontend_pagination_contract(monkeypatch):
@@ -64,12 +64,11 @@ def test_release_gate_leakage_list_uses_frontend_pagination_contract(monkeypatch
     def fake_get_json(base_url, path, query=None, timeout=20, basic_auth=None):
         captured.update({"base_url": base_url, "path": path, "query": query, "timeout": timeout})
         return {
-            "url": "http://skyradar.example.com/api/leakage",
+            "url": "http://skyradar.example.com/api/v1/leakages",
             "status": 200,
             "payload": {
-                "status": 200,
-                "total": 1,
-                "result": [{"_id": "real-leakage-id"}],
+                "data": [{"_id": "real-leakage-id"}],
+                "meta": {"total": 1},
             },
         }
 
@@ -78,7 +77,6 @@ def test_release_gate_leakage_list_uses_frontend_pagination_contract(monkeypatch
     result = smoke.check_leakage_list(
         "http://skyradar.example.com",
         "REAL_TAG",
-        {"ignore": 0},
         limit=10,
         timeout=5,
     )
@@ -86,9 +84,9 @@ def test_release_gate_leakage_list_uses_frontend_pagination_contract(monkeypatch
     assert result["ok"] is True
     assert result["leakage_id"] == "real-leakage-id"
     assert captured["query"] == {
-        "status": json.dumps({"ignore": 0}, separators=(",", ":")),
-        "from": 1,
-        "limit": 10,
+        "state": "pending",
+        "page": 1,
+        "page_size": 10,
         "tag": "REAL_TAG",
     }
 

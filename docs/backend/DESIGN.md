@@ -1,10 +1,10 @@
 # SkyRadar 后端设计规范
 
-职责：本文是后端稳定架构、domain 分层、API 人工兼容语义和安全边界的主要来源。
+职责：本文是后端稳定架构、domain 分层、REST API 契约语义和安全边界的主要来源。
 
 职责边界：
 
-- 本文记录“系统应该如何组织”和“历史 API 兼容语义是什么”。
+- 本文记录“系统应该如何组织”和“最终 REST API 契约语义是什么”。
 - 后续路线写入 `PLAN.md`，当前状态和验证写入 `PROGRESS.md`。
 - 命令、配置、CI、部署、依赖和 Agent 操作规则写入 `IMPLEMENTATION_GUIDE.md`。
 - 测试策略和执行门禁分别写入 `TESTING.md` 与 `CHECKLIST.md`；本文只引用测试要求，不维护完整 checklist。
@@ -16,7 +16,7 @@
 
 ## 设计目标
 
-- 保持 `/api/*` 路径、参数、HTTP 方法和 response body 兼容，直到显式版本化。
+- 以 `/api/v1/*` 作为最终 RESTful API 形态，使用标准 HTTP 方法、HTTP status 和统一响应结构。
 - FastAPI 是主 HTTP 入口；测试 monkeypatch 必须挂到 service、repository 或 integration 边界。
 - HTTP 适配、业务流程、数据库访问、外部服务和 worker 调度必须分层。
 - Swagger/OpenAPI、契约测试、CI、worker smoke 和部署验证构成同一套后端 harness。
@@ -71,26 +71,26 @@ server/
 - 绑定 URL、HTTP 方法和 FastAPI 路由。
 - 解析 query、body、path 参数。
 - 调用 service 执行业务流程。
-- 使用统一 response helper 返回兼容 `status/msg/result/total` 结构。
+- 使用统一 response helper 返回 `data/meta/links` 成功结构和 `error/message/detail/request_id` 错误结构。
 
 禁止：
 
 - 直接写复杂 MongoDB 查询或 upsert 流程。
 - 直接调用 PyGithub、Requests、smtplib 等外部 SDK。
 - 返回原始 `password`、GitHub PAT、SMTP password、webhook token。
-- 为了“看起来更合理”修改兼容 response shape。
+- 为了“看起来更合理”偏离 REST response shape。
 
 ### Schema
 
 职责：
 
 - 描述请求参数、响应字段、OpenAPI 组件和测试 fixture。
-- 在 FastAPI 主线中可使用 Pydantic model，但不得为了类型化修正兼容协议。
+- 在 FastAPI 主线中可使用 Pydantic model，schema 必须表达最终 REST 契约。
 - 明确字段脱敏策略。
 
 规则：
 
-- Schema 记录当前真实契约。
+- Schema 记录最终 REST 契约。
 - OpenAPI 示例必须使用假 token、假邮箱、假 webhook。
 - 新增 schema 时同步检查 `docs/api/openapi.yaml` 和契约测试。
 
@@ -159,63 +159,182 @@ server/
 
 - 保持 `api:app` ASGI 入口。
 - Gunicorn 使用 Uvicorn worker 运行 ASGI app。
-- `/api/openapi.json` 和 `/api/docs` 继续由受控开关启用，生产默认关闭。
+- `/api/v1/openapi.json` 和 `/api/v1/docs` 继续由受控开关启用，生产默认关闭。
 - `docs/api/openapi.yaml` 是机器可读契约源，不直接用 FastAPI 自动 OpenAPI 覆盖。
-- 如果某个端点为了保持兼容契约需要绕开 FastAPI/Pydantic 默认行为，必须记录在本文的 API 兼容语义、`docs/api/openapi.yaml` 和对应测试中。
+- 如果某个端点为了满足 REST 契约需要绕开 FastAPI/Pydantic 默认行为，必须记录在本文的 API 契约语义、`docs/api/openapi.yaml` 和对应测试中。
 
-## API 兼容语义
+## RESTful API 设计规范
 
-`docs/api/openapi.yaml` 是路径、参数、request body、response schema 和 examples 的机器可读源；本文记录 `/api/*` 的人工可读兼容语义和高风险行为。
+当前 API 以 `/api/v1/*` 为最终 RESTful 契约。OpenAPI、文档入口、健康检查、契约测试和部署 healthcheck 都应围绕 v1 路径维护。
+
+### 资源和 URL
+
+- URL 表达资源，不表达动作；资源名使用小写复数名词，必要时使用连字符。
+- 示例：`/api/v1/leakages`、`/api/v1/search-rules`、`/api/v1/webhooks`。
+- 禁止新增 `get*`、`create*`、`delete*`、`test*` 这类动词型路径。
+- 单资源使用资源 ID 表达：`/api/v1/leakages/{leakage_id}`。
+- 避免深层嵌套；跨资源筛选优先放 query，例如 `/api/v1/leakages?tag=github-token`。
+- 外部系统 provider 用字段表达，不用新增 provider 专用路径，例如 `provider=dingtalk`。
+- 与结果处理、通知测试这类非 CRUD 行为相关的动作，优先建模为子资源或任务资源；如果确实必须用动作名，必须在 `DECISIONS.md` 记录原因。
+
+### HTTP 方法
+
+- `GET` 读取集合或单个资源，不产生业务写入。
+- `POST` 创建资源，或创建异步任务、测试发送任务等动作资源。
+- `PUT` 全量替换资源；没有全量替换语义时不要为了凑方法使用 `PUT`。
+- `PATCH` 局部更新资源。
+- `DELETE` 删除资源；幂等删除语义必须在 OpenAPI 中说明。
+- 不新增 `X-HTTP-Method-Override`，除非明确支持受限客户端并同步测试。
+
+### 查询参数
+
+- 搜索、筛选、排序和分页统一放在 query string。
+- 常用字段：
+  - `search`：文本搜索。
+  - `sort`：排序字段。
+  - `order`：`asc` 或 `desc`。
+  - `page`：页码，从 1 开始。
+  - `page_size`：每页数量，必须有服务端上限。
+- 过滤字段使用资源字段名，例如 `tag`、`language`、`status`、`provider`。
+- RESTful API 不接受 JSON 字符串 query 作为筛选条件；复杂筛选应设计为明确 query 字段或 POST 到搜索任务资源。
+
+### HTTP 状态码
+
+- RESTful API 必须让 HTTP status 反映结果：
+  - `200 OK`：读取、更新或同步动作成功。
+  - `201 Created`：资源创建成功。
+  - `202 Accepted`：异步任务已接受。
+  - `204 No Content`：删除成功且无需返回 body。
+  - `400 Bad Request`：请求格式或参数无法处理。
+  - `401 Unauthorized`：未认证。
+  - `403 Forbidden`：已认证但无权限。
+  - `404 Not Found`：资源不存在。
+  - `409 Conflict`：状态冲突。
+  - `422 Unprocessable Entity`：语义校验失败。
+  - `429 Too Many Requests`：限流。
+  - `500 Internal Server Error`：未预期服务端错误。
+  - `503 Service Unavailable`：依赖服务不可用或系统暂不可用。
+- 禁止用 HTTP 200 表示业务失败。
+
+### 响应体
+
+- API response 默认为 JSON；除 Swagger UI HTML 外，不返回纯文本业务响应。
+- 成功响应使用 HTTP status 表达状态，body 使用以下结构：
+
+```json
+{
+  "data": {},
+  "meta": {},
+  "links": {}
+}
+```
+
+- `data` 承载资源或资源数组；没有 body 的成功删除使用 HTTP 204。
+- `meta` 承载分页、统计、生成时间等非资源数据。
+- `links` 可选，承载 `self`、`next`、`prev`、`related` 等链接；不强制实现 HATEOAS，但分页和异步任务建议提供。
+- 列表分页示例：
+
+```json
+{
+  "data": [],
+  "meta": {
+    "page": 1,
+    "page_size": 20,
+    "total": 0
+  },
+  "links": {
+    "self": "/api/v1/leakages?page=1&page_size=20"
+  }
+}
+```
+
+### 错误体
+
+- 错误响应使用统一 JSON 结构：
+
+```json
+{
+  "error": "invalid_request",
+  "message": "请求参数无效",
+  "detail": {},
+  "request_id": "optional-request-id"
+}
+```
+
+- `error` 使用稳定机器码，采用小写 snake_case。
+- `message` 面向用户或调用方，不能包含 secret、完整 token、完整 webhook URL 或泄露代码。
+- `detail` 可包含字段级错误，不得回显敏感 payload。
+- `request_id` 可选；如果后续加入链路追踪，必须贯穿日志和响应。
+
+### 版本控制和迁移
+
+- 当前最终版本路径使用 `/api/v1/*`；后续不兼容修改进入 `/api/v2/*`。
+- 新版本迁移必须同时提供 OpenAPI 契约、contract tests、前端 adapter 迁移计划、发布切换和回滚策略。
+
+### OpenAPI 和测试
+
+- 每个新增 RESTful operation 必须有唯一 `operationId`，命名使用动作 + 资源，例如 `listLeakages`、`createWebhook`。
+- `docs/api/openapi.yaml` 必须记录 HTTP status、请求体、响应体、错误体和分页字段。
+- OpenAPI 示例不得包含真实 GitHub PAT、SMTP password、webhook token、MongoDB URI、Redis secret、内网地址或生产域名。
+- RESTful API 必须补 FastAPI TestClient contract tests，至少覆盖：
+  - 成功 HTTP status。
+  - 错误 HTTP status 和错误体。
+  - JSON key 顺序和分页 `meta`。
+  - 敏感字段脱敏。
+  - OpenAPI route coverage。
+- 涉及前端的 API 变化必须同步 `client/src/lib/api/*` adapter 和 `docs/frontend/IMPLEMENTATION_GUIDE.md`。
+
+## API 契约语义
+
+`docs/api/openapi.yaml` 是路径、参数、request body、response schema 和 examples 的机器可读源；本文记录 `/api/v1/*` 的人工可读契约语义和高风险行为。
 
 通用规则：
 
-- 除 `/api/health` 外，大多数业务接口返回 `status/msg/result` body；`GET /api/leakage` 额外返回 `total`。
-- HTTP status 通常为 200；body 内的 `status` 是业务兼容字段，不等同于 HTTP status code。
-- 多个创建或保存接口成功时 body `status=201`，HTTP status 仍可能为 200。
-- 多个 DELETE 接口成功时 body `status=404`，这是兼容成功语义，不得误改为 HTTP 404。
-- 写接口必须兼容 `application/json` 和 `application/x-www-form-urlencoded`。
+- 所有业务路径使用 `/api/v1/*`。
+- 成功响应使用 `data/meta/links`；删除成功且无需返回资源时使用 HTTP 204 且无 body。
+- 错误响应使用 `error/message/detail/request_id`，HTTP status 必须与错误语义一致。
+- 写接口默认接收 `application/json`，表单请求不属于 REST 契约要求。
 - 当前 API 无应用级鉴权；启用 nginx Basic Auth 时，鉴权发生在反向代理层，不改变 FastAPI 业务契约。
 - Swagger 示例、测试快照和日志不能包含真实 GitHub PAT、SMTP password、webhook token、MongoDB URI secret 或 Redis secret。
 
 机器契约范围：
 
-- `docs/api/openapi.yaml` 必须覆盖健康检查、文档入口、结果、统计和全部 setting API。
-- 路由覆盖由 `scripts/backend_route_coverage.py` 校验。
-- 修改任一 `/api/*` 行为时，必须同步 `docs/api/openapi.yaml`、FastAPI TestClient contract tests、前端 API adapter 和本文兼容语义。
+- `docs/api/openapi.yaml` 必须覆盖 `/api/v1/health`、`/api/v1/docs`、`/api/v1/openapi.json`、结果、统计和全部设置资源。
+- 路径范围由 `scripts/backend_route_coverage.py` 校验：默认拒绝非 `/api/v1/*` OpenAPI path；未来 v1 runtime route 落地后可启用注册路由覆盖检查。
+- 修改任一 `/api/v1/*` 行为时，必须同步 `docs/api/openapi.yaml`、FastAPI TestClient contract tests、前端 API adapter 和本文契约语义。
 
-高风险端点：
+核心资源：
 
-- `GET /api/leakage` 的 `status` query 是必传 JSON 字符串，例如 `{"security":0,"ignore":0}`；缺失时当前 FastAPI 参数校验返回 HTTP 422，非 JSON 字符串仍可能触发 service 层 500。
-- `GET /api/leakage` 的 `status` 当前允许携带 Mongo 查询操作符，这是兼容协议，也是输入校验风险；列表查询排除 `code` 和 `affect` 字段。
-- `PATCH /api/leakage` 按 `_id` 更新单条结果；当 `security=0, ignore=0` 或 `security=1, ignore=1` 时，会批量更新同 `project` 的结果；成功 body 使用 `status=201`、`msg=处理成功`、`result=[]`。
-- `GET /api/leakage/info` 返回单条结果元信息，排除 `code` 字段，当前也排除 `_id`。
-- `GET /api/leakage/code` 返回 base64 编码 `code` 和历史扫描数据中的 `affect`；代码内容不得进入普通日志、OpenAPI 示例或测试快照。
-- `GET /api/trend` 返回仪表盘统计和扫描任务状态，`result.engine.status` 表示任务进程 PID 是否存在，`result.engine.last` 未配置时为 `0`。
-- `GET /api/statistic` 的 `by` 默认 `tag`，常用值为 `tag`、`language`；`tag` 不传或为空字符串时表示不过滤；`by` 当前仍需白名单加固。
+- `GET /api/v1/leakages` 使用显式 query 字段过滤、排序和分页，禁止透传 Mongo 查询操作符。
+- `GET /api/v1/leakages/{leakage_id}` 返回泄露详情元信息，不包含代码正文。
+- `PATCH /api/v1/leakages/{leakage_id}` 更新 `security`、`ignored`、`desc` 和可选同项目结果。
+- `GET /api/v1/leakages/{leakage_id}/code` 返回 base64 编码代码和受影响资产；代码内容不得进入普通日志、OpenAPI 示例或测试快照。
+- `GET /api/v1/trends` 返回仪表盘统计和扫描任务运行信息。
+- `GET /api/v1/statistics` 使用 `group_by` 明确聚合维度，当前维度为 `tag` 或 `language`。
 
-Settings 兼容语义：
+设置资源：
 
-- GitHub 设置响应不得包含原始 `password` 或 PAT；`POST` 成功使用 body `status=201`，认证失败使用 body `status=401`；`DELETE` 成功使用 body `status=404`。
-- Query 设置的 `POST /api/setting/query` 按 `tag` 判断新增或更新；`DELETE` 删除规则时会删除同 tag 的泄露结果，成功使用 body `status=404`。
-- Cron 未配置时 `GET /api/setting/cron` 使用 body `status=400`、`msg=请配置查询页数和周期`、`result=null`；保存后会尝试向已有任务 PID 发送 `SIGHUP`。
-- Blacklist 和 Notice 的 `POST` 会对输入文本执行 `strip()` 并移除空格；`DELETE` 成功使用 body `status=404`。
-- Mail 设置响应不得包含 SMTP `password`；`test=true` 的发送行为必须可 mock，不得在默认测试中发送真实邮件。
-- Webhook 设置使用 `GET/POST/DELETE /api/setting/webhook`；请求字段为 `provider`、`webhook_url`、`secret`、`domain`、`enabled`、`test`，当前 `provider` 支持 `dingtalk` 和 `feishu`。
-- Webhook `GET` 返回 `provider`、脱敏 `webhook_url` 和 `webhook_hash`；`DELETE` 使用 `webhook_url` 或 `webhook_hash` 参数，成功时 body `status=200`。
-- Webhook 存储要求新记录包含 `provider`；不为缺少 `provider` 的旧 Mongo 数据做自动兼容或推断。
+- GitHub 账号使用 `/api/v1/github-accounts` 和 `/api/v1/github-accounts/{username}`；响应不得包含原始 token。
+- 查询规则使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`。
+- 任务调度使用 `/api/v1/task-schedules/current`。
+- 黑名单使用 `/api/v1/blacklist-items` 和 `/api/v1/blacklist-items/{text}`。
+- 邮件通知接收人使用 `/api/v1/notification-recipients` 和 `/api/v1/notification-recipients/{mail}`。
+- SMTP 配置使用 `/api/v1/mail-settings/current`；响应不得包含 SMTP password。
+- Webhook 配置使用 `/api/v1/webhooks` 和 `/api/v1/webhooks/{webhook_id}`；响应只返回脱敏 URL、稳定 ID 和 `has_secret`。
+- Webhook 测试建模为任务资源 `POST /api/v1/webhook-tests`，成功接受使用 HTTP 202。
 
 API 文档入口：
 
-- `GET /api/openapi.json`、`GET /api/docs` 和未来 `GET /api/redoc` 生产默认关闭。
-- 关闭时返回 HTTP 404，body 为 `status=404`、`msg=API docs disabled`、`result=[]`。
-- Swagger UI 会读取 `/api/openapi.json`。
+- `GET /api/v1/openapi.json`、`GET /api/v1/docs` 和未来 `GET /api/v1/redoc` 生产默认关闭。
+- 关闭时返回 HTTP 404，body 使用统一错误结构。
+- Swagger UI 会读取 `/api/v1/openapi.json`。
 - 文档入口暴露 API 路径、参数和响应结构，生产环境必须放在认证代理、VPN、内网或应用鉴权之后。
 
 健康检查：
 
-- `GET /api/health` 不使用 `status/msg/result` 包裹结构。
-- 响应字段为 `github` 和 `mongodb`；两者都可能是成功对象/布尔值或错误字符串。
-- 后端访问 `https://api.github.com/`，HTTP 状态码小于 500 视为 GitHub API 可达；匿名 rate limit 403 不判为不可达。
+- `GET /api/v1/health` 使用标准成功响应结构。
+- `data.api`、`data.github`、`data.mongodb` 和 `data.redis` 统一使用 `{ ok, message, latency_ms }`。
+- HTTP 200 代表健康检查请求成功；依赖不可用时可以返回 HTTP 503 和统一错误体。
 - MongoDB 检查使用 `db.command("ping")`。
 
 ## Sync 和 Async 规则
@@ -232,7 +351,7 @@ API 文档入口：
 
 敏感字段包括但不限于：
 
-- GitHub username/password 兼容登录字段和 PAT。
+- GitHub username 和 PAT/token。
 - SMTP password。
 - webhook token、完整 webhook URL 中的签名参数。
 - MongoDB URI 中的用户名和密码。

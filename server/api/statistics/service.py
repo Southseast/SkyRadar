@@ -11,7 +11,7 @@ import psutil
 from api.statistics import repository as statistic_repository
 
 
-def trend(tag=None):
+def summary(tag=None):
     today_start = int(
         datetime.datetime.combine(datetime.date.today(), datetime.time.min).timestamp()
     )
@@ -49,10 +49,10 @@ def trend(tag=None):
         }
     else:
         engine = {"status": False, "last": 0}
-    return {"status": 200, "msg": "获取信息成功", "result": {"all": total, "today": today, "engine": engine}}
+    return {"all": total, "today": today, "engine": engine}
 
 
-def statistic(by="tag", tag=""):
+def breakdowns(by="tag", tag=""):
     filters = {"tag": tag, "security": 0} if tag else {"security": 0}
     pipeline = [
         {"$match": filters},
@@ -61,4 +61,8 @@ def statistic(by="tag", tag=""):
     result = statistic_repository.aggregate_results(pipeline)
     if not result:
         result = statistic_repository.aggregate_results([{"$group": {"_id": "${}".format(by), "value": {"$sum": 0}}}])
-    return {"status": 200, "msg": "获取信息成功", "result": result}
+    return result
+
+
+trend = summary
+statistic = breakdowns

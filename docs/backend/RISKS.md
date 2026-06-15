@@ -13,7 +13,7 @@
 
 状态：已选择部署层缓解方案，保留应用级鉴权缺口
 
-描述：当前 `/api/*` 没有应用级鉴权，依赖部署网络边界、反向代理、VPN 或内网访问控制。
+描述：当前 `/api/v1/*` 没有应用级鉴权，依赖部署网络边界、反向代理、VPN 或内网访问控制。
 
 影响：如果服务暴露到不可信网络，攻击者可能查看泄露结果、修改规则、删除配置或触发通知。
 
@@ -54,17 +54,17 @@
 - Mongo 查询、分页、upsert、replace 和聚合继续放入 repository/helper。
 - 继续用 MongoDB 8 smoke 和 contract tests 防回归。
 
-## R004 - API 兼容契约容易被重构破坏
+## R004 - REST API 契约容易被重构破坏
 
 状态：已知风险
 
-描述：当前 API 存在需要保持的兼容行为：body `status` 不等于 HTTP status、部分 DELETE 使用兼容 body、`/api/leakage` 的 `status` 是 JSON 字符串、`/api/health` shape 特殊。
+描述：当前 API 以 `/api/v1/*`、标准 HTTP status、`data/meta/links` 成功 envelope 和 `error/message/detail/request_id` 错误 envelope 作为最终契约。重构 route、schema 或 adapter 时容易让 OpenAPI、runtime 和前端解析发生漂移。
 
-影响：框架迁移或 schema 化时容易无意改变前端依赖的协议。
+影响：契约漂移会导致前端请求失败、错误处理误判、分页或删除语义不一致。
 
 缓解：
 
-- 保持 `DESIGN.md` 的兼容语义和 `docs/api/openapi.yaml` 为契约源。
+- 保持 `DESIGN.md` 的 REST 语义和 `docs/api/openapi.yaml` 为契约源。
 - FastAPI TestClient 契约测试覆盖当前 response shape。
 - API 或 route 变更必须通过 OpenAPI route coverage、Schemathesis 只读 smoke 和 compose smoke。
 
@@ -155,7 +155,7 @@
 - Worker/nginx 拆分切片必须跑 import smoke、真实 Redis/Huey 消费 smoke、compose 级别 HTTP smoke、静态首页 smoke 和 nginx 配置检查。
 - `depends_on` 不能作为可用性证明，必须以真实请求和真实任务消费结果为准。
 - nginx 独立 service 使用 `SKYRADAR_NGINX_UPSTREAM=skyradar:8888`；all-in-one profile 默认 upstream 为 `127.0.0.1:8888`。
-- compose smoke 覆盖独立 nginx service health、静态首页、`/api/health` 反向代理、`nginx -t` 和 `/var/log/nginx` 可写检查。
+- compose smoke 覆盖独立 nginx service health、静态首页、`/api/v1/health` 反向代理、`nginx -t` 和 `/var/log/nginx` 可写检查。
 - 拆分失败时回退到 `skyradar-all-in-one` profile，且避免和默认 `nginx` service 同时占用 HTTP 端口。
 
 ## R011 - compose smoke 需要持续接入 CI
@@ -168,7 +168,7 @@
 
 缓解：
 
-- `backend-compose-smoke` 覆盖 `down -v`、`up -d --build`、service health、`/api/health`、静态首页、nginx 配置和日志路径、MongoDB `ping/CRUD`、Redis ping/version 和 worker 真实任务消费。
+- `backend-compose-smoke` 覆盖 `down -v`、`up -d --build`、service health、`/api/v1/health`、静态首页、nginx 配置和日志路径、MongoDB `ping/CRUD`、Redis ping/version 和 worker 真实任务消费。
 - 已新增 `.github/workflows/backend.yml` 接入 CI；拓扑变更提交推送后需回填新的远端运行结果。
 - `PROGRESS.md` 必须区分“已运行单项 smoke”和“已运行完整 compose smoke”。
 - 每次运行拓扑变更都必须在最终汇报里列出完整 compose smoke 结果和未覆盖项。

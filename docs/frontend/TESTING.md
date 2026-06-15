@@ -15,7 +15,7 @@
 - 防止 API adapter 兼容逻辑回退。
 - 防止关键交互、空态、错误态和 loading 态缺失。
 - 防止敏感字段进入页面状态或测试快照。
-- 防止 Docker/nginx 发布形态破坏静态资源或 `/api` 代理。
+- 防止 Docker/nginx 发布形态破坏静态资源或 `/api/v1/*` 代理。
 
 ## 技术栈
 
@@ -33,7 +33,7 @@
 覆盖：
 
 - API response adapter。
-- `/api/leakage` status 参数序列化。
+- `/api/v1/leakages` 列表 query 参数序列化。
 - base64 代码解码。
 - URL query 和 tab 状态转换。
 - 敏感字段剥离，例如 GitHub `password`、SMTP password、webhook token。
@@ -63,9 +63,9 @@
 
 - 静态资源可访问。
 - SPA fallback 可用。
-- `/api/health` 可访问且子项符合预期。
-- `/api/leakage`、`/api/leakage/info`、`/api/leakage/code` 只读链路可用。
-- `/api/setting/*` 只读链路可用。
+- `/api/v1/health` 可访问且子项符合预期。
+- `/api/v1/leakages`、`/api/v1/leakages/{id}`、`/api/v1/leakages/{id}/code` 只读链路可用。
+- `/api/v1/github-accounts`、`/api/v1/search-rules`、`/api/v1/task-schedules/current`、`/api/v1/blacklist-items`、`/api/v1/notification-recipients`、`/api/v1/mail-settings/current`、`/api/v1/webhooks` 只读链路可用。
 
 ## 测试数据
 

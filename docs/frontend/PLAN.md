@@ -29,15 +29,15 @@
 
 | ID | 功能 | 状态 | 主要 API/路由 | 验收边界 |
 | --- | --- | --- | --- | --- |
-| F001 | 结果仪表盘和结果表格 | Done | `/`, `/api/trend`, `/api/statistic`, `/api/leakage`, `PATCH /api/leakage` | 列表、筛选、分页、统计、loading/empty/error、行级状态处理可用 |
-| F002 | 泄露详情 | Done | `/view/leakage/:id`, `/api/leakage/info`, `/api/leakage/code`, `PATCH /api/leakage` | 详情加载、base64 解码、受影响资产、安全/忽略/备注提交可用 |
+| F001 | 结果仪表盘和结果表格 | Done | `/`, `/api/v1/trends`, `/api/v1/statistics`, `/api/v1/leakages`, `PATCH /api/v1/leakages/{id}` | 列表、筛选、分页、统计、loading/empty/error、行级状态处理可用 |
+| F002 | 泄露详情 | Done | `/view/leakage/:id`, `/api/v1/leakages/{id}`, `/api/v1/leakages/{id}/code`, `PATCH /api/v1/leakages/{id}` | 详情加载、base64 解码、受影响资产、安全/忽略/备注提交可用 |
 | F003 | 设置页框架和页签 | Done | `/setting`, `/setting/:tab` | tab 可直达，切换同步 URL |
-| F004 | GitHub 账号设置 | Done | `/api/setting/github` | 账号列表、添加、删除、配额展示和敏感字段过滤可用 |
-| F005 | 查询规则设置 | Done | `/api/setting/query` | 规则列表、添加、编辑、启停、删除和 GitHub 搜索链接可用 |
-| F006 | 任务调度设置 | Done | `/api/setting/cron` | 读取默认值、保存扫描间隔和查询页数可用 |
-| F007 | 黑名单设置 | Done | `/api/setting/blacklist` | 黑名单列表、添加、删除和状态反馈可用 |
-| F008 | 通知设置 | Done | `/api/setting/notice`, `/api/setting/mail`, `/api/setting/webhook` | 收件人、SMTP、webhook 保存/删除/测试链路可用，secret 不展示 |
-| F009 | 部署切换准备 | Gate Pending | `client/dist`, `/api/health`, SPA fallback | Docker/nginx 静态资源目标和 `/api` 代理已准备，正式发布仍需 release gate |
+| F004 | GitHub 账号设置 | Done | `/api/v1/github-accounts` | 账号列表、添加、删除、配额展示和敏感字段过滤可用 |
+| F005 | 查询规则设置 | Done | `/api/v1/search-rules` | 规则列表、添加、编辑、启停、删除和 GitHub 搜索链接可用 |
+| F006 | 任务调度设置 | Done | `/api/v1/task-schedules/current` | 读取默认值、保存扫描间隔和查询页数可用 |
+| F007 | 黑名单设置 | Done | `/api/v1/blacklist-items` | 黑名单列表、添加、删除和状态反馈可用 |
+| F008 | 通知设置 | Done | `/api/v1/notification-recipients`, `/api/v1/mail-settings/current`, `/api/v1/webhooks` | 收件人、SMTP、webhook 保存/删除/测试链路可用，secret 不展示 |
+| F009 | 部署切换准备 | Gate Pending | `client/dist`, `/api/v1/health`, SPA fallback | Docker/nginx 静态资源目标和 `/api` 代理已准备，正式发布仍需 release gate |
 
 ## P0 验收规则
 

@@ -99,7 +99,7 @@ export function LeakageDetailPage() {
 
     try {
       const response = await patchLeakageDetail(form)
-      setNotice(response.msg ?? "处理成功")
+      setNotice(response.message ?? "处理成功")
     } catch (requestError) {
       setError(getErrorMessage(requestError))
     } finally {

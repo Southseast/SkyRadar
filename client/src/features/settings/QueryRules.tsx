@@ -78,10 +78,10 @@ export function QueryRules() {
         keyword: form.keyword.trim(),
         enabled: form.enabled,
       })
-      setRules(response.result ?? [])
+      setRules(await fetchQueryRules())
       setForm(emptyForm)
       setEditingId(null)
-      setNotice(response.msg ?? "保存成功")
+      setNotice(response.message ?? "保存成功")
     } catch (requestError) {
       setError(getErrorMessage(requestError))
     } finally {
@@ -100,8 +100,8 @@ export function QueryRules() {
         keyword: rule.keyword,
         enabled,
       })
-      setRules(response.result ?? [])
-      setNotice(response.msg ?? "更新成功")
+      setRules(await fetchQueryRules())
+      setNotice(response.message ?? "更新成功")
     } catch (requestError) {
       setRules((current) => current.map((item) => (item._id === rule._id ? { ...item, enabled: rule.enabled } : item)))
       setError(getErrorMessage(requestError))
@@ -115,8 +115,8 @@ export function QueryRules() {
 
     try {
       const response = await deleteQueryRule(rule)
-      setRules(response.result ?? [])
-      setNotice(response.msg ?? "删除成功")
+      setRules((current) => current.filter((item) => item._id !== rule._id))
+      setNotice(response.message ?? "删除成功")
       if (editingId === rule._id) {
         setEditingId(null)
         setForm(emptyForm)

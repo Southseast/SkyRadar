@@ -32,7 +32,7 @@ DEFAULT_PATHS = (
     "/setting/task",
     "/setting/blacklist",
     "/setting/notice",
-    "/api/health",
+    "/api/v1/health",
 )
 
 
@@ -62,7 +62,7 @@ def parse_args():
     parser.add_argument(
         "--skip-api-health",
         action="store_true",
-        help="Skip /api/health. Use this for Vite preview without a backend proxy.",
+        help="Skip /api/v1/health. Use this for Vite preview without a backend proxy.",
     )
     parser.add_argument(
         "--basic-auth-username",
@@ -143,7 +143,7 @@ def parse_viewport(value):
 def collect_paths(args):
     paths = list(DEFAULT_PATHS)
     if args.skip_api_health:
-        paths = [path for path in paths if path != "/api/health"]
+        paths = [path for path in paths if path != "/api/v1/health"]
     paths.extend(args.path)
     if args.leakage_id:
         paths.append("/view/leakage/%s" % args.leakage_id)

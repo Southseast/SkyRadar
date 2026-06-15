@@ -6,9 +6,6 @@
 
 """HTTP response helpers for the SkyRadar API payload shape."""
 
-DEFAULT_SUCCESS_MSG = "获取信息成功"
-
-
 def jsonable(value):
     if isinstance(value, list):
         return [jsonable(item) for item in value]
@@ -23,39 +20,48 @@ def jsonable(value):
     return value
 
 
-def api_payload(result=None, *, status=200, msg=DEFAULT_SUCCESS_MSG, **extra):
-    payload = {
-        "status": status,
-        "msg": msg,
-        "result": jsonable(result),
-    }
-    payload.update({key: jsonable(value) for key, value in extra.items()})
-    return payload
-
-
-def fastapi_response(result=None, *, status=200, msg=DEFAULT_SUCCESS_MSG, http_status=200, **extra):
-    from fastapi.responses import JSONResponse
-
-    return JSONResponse(
-        content=api_payload(result, status=status, msg=msg, **extra),
-        status_code=http_status,
-    )
-
-
 def json_response(data, status_code=200):
     from fastapi.responses import JSONResponse
 
     return JSONResponse(content=jsonable(data), status_code=status_code)
 
 
-def api_shape_response(status, msg, result, **extra):
-    return api_payload(result, status=status, msg=msg, **extra)
+def rest_payload(data=None, *, meta=None, links=None):
+    payload = {"data": jsonable(data)}
+    if meta is not None:
+        payload["meta"] = jsonable(meta)
+    if links is not None:
+        payload["links"] = jsonable(links)
+    return payload
+
+
+def rest_response(data=None, *, status_code=200, meta=None, links=None):
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(
+        content=rest_payload(data, meta=meta, links=links),
+        status_code=status_code,
+    )
+
+
+def rest_error_response(error, message, *, status_code=400, detail=None, request_id=None):
+    from fastapi.responses import JSONResponse
+
+    payload = {
+        "error": error,
+        "message": message,
+    }
+    if detail is not None:
+        payload["detail"] = jsonable(detail)
+    if request_id is not None:
+        payload["request_id"] = request_id
+    return JSONResponse(content=payload, status_code=status_code)
+
 
 __all__ = [
-    "DEFAULT_SUCCESS_MSG",
-    "api_shape_response",
-    "api_payload",
-    "fastapi_response",
     "jsonable",
     "json_response",
+    "rest_error_response",
+    "rest_payload",
+    "rest_response",
 ]

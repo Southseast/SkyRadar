@@ -53,7 +53,7 @@ def test_smoke_request_adds_basic_auth_from_environment(monkeypatch):
     monkeypatch.setenv("SKYRADAR_BASIC_AUTH_PASSWORD", "test-password-not-secret")
 
     request = backend_compose_smoke.smoke_request(
-        "http://127.0.0.1:18081/api/health",
+        "http://127.0.0.1:18081/api/v1/health",
         {"Accept": "application/json"},
     )
 

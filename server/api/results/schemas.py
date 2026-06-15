@@ -8,18 +8,19 @@ from pydantic import BaseModel, Field
 
 
 class LeakageListParams(BaseModel):
-    status: str
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=20, ge=1, le=100)
     tag: str | None = None
     language: str | None = None
-    limit: int = 10
-    from_: int = Field(default=1, alias="from")
+    security: int | None = Field(default=None, ge=0, le=1)
+    ignored: bool | None = None
+    reviewed: bool | None = None
 
     model_config = {"populate_by_name": True}
 
 
 class LeakagePatchPayload(BaseModel):
-    id: str
-    project: str
-    security: int
-    ignore: int
-    desc: str = ""
+    project: str | None = None
+    security: int | None = Field(default=None, ge=0, le=1)
+    ignored: bool | None = None
+    desc: str | None = None

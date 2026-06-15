@@ -23,30 +23,28 @@ describe("GithubAccounts", () => {
   })
 
   it("loads accounts, adds an account, and deletes by username", async () => {
-    mockedFetchGithubAccounts.mockResolvedValue([
-      {
-        username: "octo",
-        mask_password: "to****en",
-        rate_limit: 30,
-        rate_remaining: 15,
-      },
-    ])
-    mockedAddGithubAccount.mockResolvedValue({
-      status: 201,
-      msg: "添加成功",
-      result: [
+    mockedFetchGithubAccounts
+      .mockResolvedValueOnce([
+        {
+          username: "octo",
+          mask_password: "to****en",
+          rate_limit: 30,
+          rate_remaining: 15,
+        },
+      ])
+      .mockResolvedValueOnce([
         {
           username: "next",
           mask_password: "ne****en",
           rate_limit: 30,
           rate_remaining: 30,
         },
-      ],
+      ])
+    mockedAddGithubAccount.mockResolvedValue({
+      message: "添加成功",
     })
     mockedDeleteGithubAccount.mockResolvedValue({
-      status: 404,
-      msg: "删除成功",
-      result: [],
+      message: "删除成功",
     })
 
     render(<GithubAccounts />)

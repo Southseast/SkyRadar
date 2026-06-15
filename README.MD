@@ -6,7 +6,7 @@ SkyRadar 是一个面向 GitHub Code Search 的代码泄露发现系统。它按
 - 后端：FastAPI/ASGI + Gunicorn/Uvicorn + MongoDB + Redis + Huey
 - 前端：React + Vite + TypeScript + Tailwind CSS + shadcn/ui
 - 部署：Docker Compose 拆分 API、nginx、worker、Redis、MongoDB
-- API 文档：`docs/api/openapi.yaml`，可通过 `/api/docs` 暴露 Swagger UI
+- API 文档：`docs/api/openapi.yaml`，可通过 `/api/v1/docs` 暴露 Swagger UI
 
 ## 目录
 
@@ -86,7 +86,7 @@ flowchart LR
 client/
   src/components/      通用布局和 shadcn/ui 组件
   src/features/        按业务功能组织的前端组合组件
-  src/lib/api/         类型化 API client 和兼容适配
+  src/lib/api/         类型化 API client 和响应映射
   src/pages/           页面入口
 
 server/
@@ -118,7 +118,7 @@ docker compose up --build -d
 默认访问：
 
 - 前端：`http://127.0.0.1/`
-- 健康检查：`http://127.0.0.1/api/health`
+- 健康检查：`http://127.0.0.1/api/v1/health`
 
 停止：
 
@@ -140,8 +140,8 @@ SKYRADAR_API_DOCS_ENABLED=1 docker compose up --build -d
 
 启用后访问：
 
-- Swagger UI：`http://127.0.0.1/api/docs`
-- OpenAPI JSON：`http://127.0.0.1/api/openapi.json`
+- Swagger UI：`http://127.0.0.1/api/v1/docs`
+- OpenAPI JSON：`http://127.0.0.1/api/v1/openapi.json`
 
 ## 配置
 
@@ -157,7 +157,7 @@ SKYRADAR_API_DOCS_ENABLED=1 docker compose up --build -d
 | `SKYRADAR_HTTP_PORT` | `80` | Compose nginx 对外端口 |
 | `SKYRADAR_IMAGE` | `skyradar:latest` | Compose 构建/运行镜像名 |
 | `SKYRADAR_MONGO_IMAGE` | `mongo:8.2.7` | Compose MongoDB 镜像 |
-| `SKYRADAR_API_DOCS_ENABLED` | `false` | 是否启用 `/api/docs` |
+| `SKYRADAR_API_DOCS_ENABLED` | `false` | 是否启用 `/api/v1/docs` |
 | `SKYRADAR_OPENAPI_PATH` | `docs/api/openapi.yaml` | OpenAPI 契约文件路径 |
 | `SKYRADAR_BASIC_AUTH_USERNAME` | 空 | nginx Basic Auth 用户名 |
 | `SKYRADAR_BASIC_AUTH_PASSWORD` | 空 | nginx Basic Auth 密码 |
@@ -309,10 +309,10 @@ docker run -d \
 
 ## 安全注意
 
-- `/api/*` 当前没有应用级登录态。部署到不可信网络前，应至少启用 nginx Basic Auth，并配合 HTTPS、VPN、内网或可信反向代理。
+- `/api/v1/*` 当前没有应用级登录态。部署到不可信网络前，应至少启用 nginx Basic Auth，并配合 HTTPS、VPN、内网或可信反向代理。
 - GitHub PAT、SMTP 密码和 webhook token 都属于敏感配置，避免在日志、截图、Issue 或聊天记录中暴露。
-- `POST /api/setting/github` 不应向页面回显原始 token；前端 adapter 会在边界删除 `password` 字段，后端也应保持敏感字段不回显。
-- MongoDB、Redis 和 Docker 基础镜像升级后，需要在目标部署环境复验 `/api/health`、worker 消费和通知链路。
+- `POST /api/v1/github-accounts` 不应向页面回显原始 token；前端 adapter 会在边界删除敏感字段，后端也应保持敏感字段不回显。
+- MongoDB、Redis 和 Docker 基础镜像升级后，需要在目标部署环境复验 `/api/v1/health`、worker 消费和通知链路。
 
 ## 文档索引
 

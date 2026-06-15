@@ -10,12 +10,11 @@ describe("results api adapter", () => {
     vi.restoreAllMocks()
   })
 
-  it("serializes leakage status as the JSON query parameter", async () => {
+  it("serializes leakage filters as typed v1 query parameters", async () => {
     const getSpy = vi.spyOn(apiClient, "get").mockResolvedValue({
       data: {
-        msg: "暂无数据",
-        result: [],
-        total: 0,
+        data: [],
+        meta: { total: 0 },
       },
     } as AxiosResponse)
 
@@ -23,17 +22,18 @@ describe("results api adapter", () => {
       status: { security: 0, desc: { $exists: false } },
       tag: "corp",
       language: "Python",
-      limit: 20,
-      from: 2,
+      page_size: 20,
+      page: 2,
     })
 
-    expect(getSpy).toHaveBeenCalledWith(endpoints.leakage, {
+    expect(getSpy).toHaveBeenCalledWith(endpoints.leakages, {
       params: {
-        status: JSON.stringify({ security: 0, desc: { $exists: false } }),
+        security: 0,
+        desc_exists: false,
         tag: "corp",
         language: "Python",
-        limit: 20,
-        from: 2,
+        page: 2,
+        page_size: 20,
       },
     })
   })
@@ -41,7 +41,7 @@ describe("results api adapter", () => {
   it("returns stable trend defaults when nested fields are missing", async () => {
     vi.spyOn(apiClient, "get").mockResolvedValue({
       data: {
-        result: {
+        data: {
           today: {
             total: 7,
           },
@@ -70,7 +70,7 @@ describe("results api adapter", () => {
   it("normalizes affected asset shapes without dropping string assets", async () => {
     vi.spyOn(apiClient, "get").mockResolvedValue({
       data: {
-        result: {
+        data: {
           code: "c2VjcmV0",
           affect: ["api.example.com", { type: "email", value: "security@example.com" }, null, { value: "10.0.0.1" }, { type: "ip" }],
         },
@@ -90,21 +90,21 @@ describe("results api adapter", () => {
   it("normalizes missing leakage fields from list records", async () => {
     vi.spyOn(apiClient, "get").mockResolvedValue({
       data: {
-        result: [
+        data: [
           {
             _id: "leakage-1",
             security: 0,
             ignore: 0,
           },
         ],
-        total: 1,
+        meta: { total: 1 },
       },
     } as AxiosResponse)
 
     const response = await fetchLeakages({
       status: { security: 0 },
-      limit: 10,
-      from: 1,
+      page_size: 10,
+      page: 1,
     })
 
     expect(response.result[0]).toMatchObject({

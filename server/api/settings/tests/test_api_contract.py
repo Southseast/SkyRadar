@@ -2,30 +2,29 @@
 # @File        : test_api_contract.py
 # @Author      : NanMing
 # @Date        : 2026/6/9 14:37
-# @Description : Tests settings API contract behavior.
-
-class FakeCursor:
-    def __init__(self, documents):
-        self.documents = documents
-        self.calls = []
-
-    def sort(self, field, direction):
-        self.calls.append(("sort", field, direction))
-        return self
-
-    def limit(self, value):
-        self.calls.append(("limit", value))
-        return self
-
-    def skip(self, value):
-        self.calls.append(("skip", value))
-        return self
-
-    def __iter__(self):
-        return iter(self.documents)
+# @Description : Tests settings REST API contract behavior.
 
 
-def test_github_account_get_contract_excludes_password(client, monkeypatch):
+class FakeDeleteResult:
+    def __init__(self, deleted_count):
+        self.deleted_count = deleted_count
+
+
+def _project(document, projection):
+    projected = dict(document)
+    for field, enabled in projection.items():
+        if enabled == 0:
+            projected.pop(field, None)
+    return projected
+
+
+def test_legacy_setting_routes_are_not_registered(client):
+    response = client.get("/api/setting/github")
+
+    assert response.status_code == 404
+
+
+def test_github_account_get_excludes_password(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
@@ -34,36 +33,36 @@ def test_github_account_get_contract_excludes_password(client, monkeypatch):
         def find(self, filters, projection):
             captured["filters"] = filters
             captured["projection"] = projection
-            return [
+            return [_project(
                 {
                     "username": "octocat",
-                    "mask_password": "gh****ken",
+                    "mask_password": "gh****en",
+                    "password": "ghp_example_token",
                     "rate_limit": 30,
                     "rate_remaining": 29,
-                }
-            ]
+                },
+                projection,
+            )]
 
     monkeypatch.setattr(setting, "github_col", FakeGithubCollection())
 
-    response = client.get("/api/setting/github")
+    response = client.get("/api/v1/github-accounts")
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "status": 200,
-        "msg": "获取信息成功",
-        "result": [
-            {
-                "username": "octocat",
-                "mask_password": "gh****ken",
-                "rate_limit": 30,
-                "rate_remaining": 29,
-            }
-        ],
+        "data": [
+                {
+                    "username": "octocat",
+                    "mask_password": "gh****en",
+                    "rate_limit": 30,
+                    "rate_remaining": 29,
+                }
+        ]
     }
     assert captured == {"filters": {}, "projection": {"_id": 0, "password": 0}}
 
 
-def test_github_account_post_contract_does_not_return_password(client, monkeypatch):
+def test_github_account_post_returns_created_public_account(client, monkeypatch):
     from integrations import github as github_integration
     from api.settings import repository as setting
     from api.settings import service as settings_service
@@ -80,60 +79,39 @@ def test_github_account_post_contract_does_not_return_password(client, monkeypat
             captured["saved_document"] = document
             captured["upsert"] = upsert
 
-        def find(self, filters, projection):
-            captured["find_filters"] = filters
-            captured["projection"] = projection
-            return [
-                {
-                    "username": "octocat",
-                    "mask_password": "gh****en",
-                    "rate_limit": 30,
-                    "rate_remaining": 28,
-                }
-            ]
-
-    fake_collection = FakeGithubCollection()
     monkeypatch.setattr(github_integration, "create_client", FakeGithub)
     monkeypatch.setattr(
         github_integration,
         "search_rate_limit",
         lambda github: {"limit": 30, "remaining": 28},
     )
-    monkeypatch.setattr(setting, "github_col", fake_collection)
+    monkeypatch.setattr(setting, "github_col", FakeGithubCollection())
     monkeypatch.setattr(settings_service.time, "time", lambda: 1780644000)
 
     response = client.post(
-        "/api/setting/github",
+        "/api/v1/github-accounts",
         json={"username": "octocat", "password": "ghp_example_token"},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 201
     body = response.get_json()
     assert body == {
-        "status": 201,
-        "msg": "添加成功",
-        "result": [
-            {
-                "username": "octocat",
-                "mask_password": "gh****en",
-                "rate_limit": 30,
-                "rate_remaining": 28,
-            }
-        ],
+        "data": {
+            "username": "octocat",
+            "mask_password": "gh****en",
+            "addat": 1780644000,
+            "rate_limit": 30,
+            "rate_remaining": 28,
+        }
     }
-    assert "password" not in body["result"][0]
+    assert "password" not in body["data"]
     assert captured["github_credentials"] == ("octocat", "ghp_example_token")
     assert captured["replace_filters"] == {"_id": "554660db8666bd658d309ec6351872e9"}
     assert captured["upsert"] is True
-    assert captured["saved_document"]["username"] == "octocat"
     assert captured["saved_document"]["password"] == "ghp_example_token"
-    assert captured["saved_document"]["addat"] == 1780644000
-    assert captured["projection"] == {"_id": 0, "password": 0}
 
 
-def test_github_account_delete_contract_preserves_404_body_status_and_excludes_password(
-    client, monkeypatch
-):
+def test_github_account_delete_returns_204(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
@@ -141,160 +119,30 @@ def test_github_account_delete_contract_preserves_404_body_status_and_excludes_p
     class FakeGithubCollection:
         def delete_many(self, filters):
             captured["delete_filters"] = filters
-
-        def find(self, filters, projection):
-            captured["find_filters"] = filters
-            captured["projection"] = projection
-            return [
-                {
-                    "username": "remaining",
-                    "mask_password": "gh****ng",
-                    "rate_limit": 30,
-                    "rate_remaining": 20,
-                }
-            ]
+            return FakeDeleteResult(1)
 
     monkeypatch.setattr(setting, "github_col", FakeGithubCollection())
 
-    response = client.delete("/api/setting/github?username=octocat")
+    response = client.delete("/api/v1/github-accounts/octocat")
 
-    assert response.status_code == 200
-    body = response.get_json()
-    assert body == {
-        "status": 404,
-        "msg": "删除成功",
-        "result": [
-            {
-                "username": "remaining",
-                "mask_password": "gh****ng",
-                "rate_limit": 30,
-                "rate_remaining": 20,
-            }
-        ],
-    }
-    assert "password" not in body["result"][0]
-    assert captured == {
-        "delete_filters": {"username": "octocat"},
-        "find_filters": {},
-        "projection": {"_id": 0, "password": 0},
-    }
+    assert response.status_code == 204
+    assert response.data == b""
+    assert captured == {"delete_filters": {"username": "octocat"}}
 
 
-def test_blacklist_delete_contract_preserves_404_body_status(client, monkeypatch):
+def test_github_account_delete_returns_404_when_missing(client, monkeypatch):
     from api.settings import repository as setting
 
-    captured = {}
-
-    class FakeBlacklistCollection:
+    class FakeGithubCollection:
         def delete_many(self, filters):
-            captured["delete_filters"] = filters
+            return FakeDeleteResult(0)
 
-        def find(self, filters, projection):
-            captured["find_filters"] = filters
-            captured["projection"] = projection
-            return [{"text": "remaining-secret"}]
+    monkeypatch.setattr(setting, "github_col", FakeGithubCollection())
 
-    monkeypatch.setattr(setting, "blacklist_col", FakeBlacklistCollection())
+    response = client.delete("/api/v1/github-accounts/missing")
 
-    response = client.delete("/api/setting/blacklist?text=obsolete-secret")
-
-    assert response.status_code == 200
+    assert response.status_code == 404
     assert response.get_json() == {
-        "status": 404,
-        "msg": "删除成功",
-        "result": [{"text": "remaining-secret"}],
+        "error": "settings_error",
+        "message": "GitHub account was not found",
     }
-    assert captured == {
-        "delete_filters": {"text": "obsolete-secret"},
-        "find_filters": {},
-        "projection": {"_id": 0},
-    }
-
-
-def test_notice_delete_contract_reads_query_args_and_preserves_404_body_status(
-    client, monkeypatch
-):
-    from api.settings import repository as setting
-
-    captured = {}
-
-    class FakeNoticeCollection:
-        def delete_many(self, filters):
-            captured["delete_filters"] = filters
-
-        def find(self, filters, projection):
-            captured["find_filters"] = filters
-            captured["projection"] = projection
-            return [{"mail": "remaining@example.com"}]
-
-    monkeypatch.setattr(setting, "notice_col", FakeNoticeCollection())
-
-    response = client.delete("/api/setting/notice?mail=previous@example.com")
-
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "status": 404,
-        "msg": "删除成功",
-        "result": [{"mail": "remaining@example.com"}],
-    }
-    assert captured == {
-        "delete_filters": {"mail": "previous@example.com"},
-        "find_filters": {},
-        "projection": {"_id": 0},
-    }
-
-
-def test_query_delete_contract_preserves_404_body_status_and_result_cleanup(client, monkeypatch):
-    from api.settings import repository as setting
-
-    captured = {}
-    query_cursor = FakeCursor(
-        [
-            {
-                "_id": "query-2",
-                "keyword": "github token",
-                "tag": "github-token",
-                "enabled": True,
-            }
-        ]
-    )
-
-    class FakeQueryCollection:
-        def delete_many(self, filters):
-            captured["query_delete_filters"] = filters
-
-        def find(self, filters):
-            captured["query_find_filters"] = filters
-            return query_cursor
-
-    class FakeResultCollection:
-        def delete_many(self, filters):
-            captured["result_delete_filters"] = filters
-
-    monkeypatch.setattr(setting, "query_col", FakeQueryCollection())
-    monkeypatch.setattr(setting, "result_col", FakeResultCollection())
-
-    response = client.delete(
-        "/api/setting/query",
-        query_string={"_id": "query-1", "tag": "obsolete-token"},
-    )
-
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "status": 404,
-        "msg": "删除成功",
-        "result": [
-            {
-                "_id": "query-2",
-                "keyword": "github token",
-                "tag": "github-token",
-                "enabled": True,
-            }
-        ],
-    }
-    assert captured == {
-        "query_delete_filters": {"_id": "query-1"},
-        "result_delete_filters": {"tag": "obsolete-token"},
-        "query_find_filters": {},
-    }
-    assert query_cursor.calls == [("sort", "enabled", -1)]

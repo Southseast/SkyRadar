@@ -43,7 +43,7 @@ describe("LeakageDetailPage", () => {
       code: "Y29uc3Qgc2VjcmV0ID0gJ3Rva2VuJw==",
       affect: [{ type: "token", value: "token" }],
     })
-    mockedPatchLeakageDetail.mockResolvedValue({ status: 201, msg: "处理成功", result: [] })
+    mockedPatchLeakageDetail.mockResolvedValue({ message: "处理成功" })
 
     render(
       <MemoryRouter initialEntries={["/view/leakage/leakage-1"]}>

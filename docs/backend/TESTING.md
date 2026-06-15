@@ -5,15 +5,15 @@
 职责边界：
 
 - 具体命令、CI job 和 smoke 脚本调用方式统一维护在 `IMPLEMENTATION_GUIDE.md`。
-- API 人工兼容语义维护在 `DESIGN.md`，机器契约维护在 `docs/api/openapi.yaml`；本文只从测试视角列覆盖点。
+- REST API 契约语义维护在 `DESIGN.md`，机器契约维护在 `docs/api/openapi.yaml`；本文只从测试视角列覆盖点。
 - 切片完成前的执行门禁维护在 `CHECKLIST.md`，本文不维护 checkbox。
 - 当前真实验证结果维护在 `PROGRESS.md`，本文不记录某次执行是否通过。
 
 ## 目标
 
-- 保持 `/api/*` 路径、参数、HTTP 方法和 response body 稳定。
-- 明确区分 HTTP status code 与响应 body 中的 `status` 字段。
-- 覆盖当前前端依赖的接口行为。
+- 覆盖最终 `/api/v1/*` RESTful 契约。
+- 验证 HTTP status code 与成功/错误语义一致。
+- 覆盖当前前端依赖的资源行为。
 - 外部系统默认 mock，必要时补受控 smoke。
 - OpenAPI 同时服务 Swagger 文档和契约校验。
 
@@ -33,46 +33,61 @@
 
 ### API Contract
 
-使用 FastAPI TestClient 对 ASGI app 发请求，验证 HTTP status、JSON shape、关键字段和兼容业务 `status` 值。
+使用 FastAPI TestClient 对 ASGI app 发请求，验证 HTTP status、JSON shape、关键字段和敏感字段脱敏。
 
 P0 覆盖：
 
-- `GET /api/health`
-- `GET /api/leakage`
-- `PATCH /api/leakage`
-- `GET /api/leakage/info`
-- `GET /api/leakage/code`
-- `GET /api/trend`
-- `GET /api/statistic`
-- `GET/POST/DELETE /api/setting/github`
-- `GET/POST/DELETE /api/setting/query`
-- `GET/POST /api/setting/cron`
-- `GET/POST/DELETE /api/setting/blacklist`
-- `GET/POST/DELETE /api/setting/notice`
-- `GET/POST /api/setting/mail`
-- `GET/POST/DELETE /api/setting/webhook`
+- `GET /api/v1/health`
+- `GET /api/v1/leakages`
+- `GET/PATCH /api/v1/leakages/{leakage_id}`
+- `GET /api/v1/leakages/{leakage_id}/code`
+- `GET /api/v1/trends`
+- `GET /api/v1/statistics`
+- `GET/POST /api/v1/github-accounts`
+- `DELETE /api/v1/github-accounts/{username}`
+- `GET/POST /api/v1/search-rules`
+- `PUT/DELETE /api/v1/search-rules/{tag}`
+- `GET/PUT /api/v1/task-schedules/current`
+- `GET/POST /api/v1/blacklist-items`
+- `DELETE /api/v1/blacklist-items/{text}`
+- `GET/POST /api/v1/notification-recipients`
+- `DELETE /api/v1/notification-recipients/{mail}`
+- `GET/PUT /api/v1/mail-settings/current`
+- `GET/POST /api/v1/webhooks`
+- `DELETE /api/v1/webhooks/{webhook_id}`
+- `POST /api/v1/webhook-tests`
 
 高风险回归点：
 
-- `/api/leakage` 的 `status` query 参数 JSON 字符串兼容行为。
-- DELETE 接口 body `status: 404` 兼容成功语义。
-- `/api/health` 非 `status/msg/result` response shape。
+- 所有成功响应使用 `data/meta/links`。
+- 所有错误响应使用 `error/message/detail/request_id`。
+- DELETE 成功使用 HTTP 204 且无 body。
 - GitHub account、SMTP 和 webhook 设置响应脱敏。
 
-完整协议细节以 `DESIGN.md` 的 API 兼容语义为准。
+完整协议细节以 `DESIGN.md` 的 API 契约语义为准。
+
+RESTful API contract tests 必须单独覆盖：
+
+- `/api/v1/*` 路径使用复数名词资源、标准 HTTP 方法和精确 HTTP status。
+- 成功响应使用 `data/meta/links` 结构；删除成功使用 HTTP 204 时不返回 body。
+- 错误响应使用 `error/message/detail/request_id` 结构，且 HTTP status 与错误语义一致。
+- 分页使用 `page/page_size` query 和 `meta.total` 等分页元数据。
+- 搜索、筛选和排序字段为显式 query 参数，不透传 Mongo 查询操作符。
+- RESTful API 的敏感字段脱敏规则符合 `DESIGN.md` 安全边界。
 
 ### OpenAPI
 
 OpenAPI 测试必须确认：
 
 - `docs/api/openapi.yaml` 可被解析。
-- OpenAPI paths 覆盖 `server/api/*/routes.py` 注册的全部 `/api/*`。
+- OpenAPI paths 只描述最终 `/api/v1/*` 契约。
+- v1 runtime routes 落地后，注册的 `/api/v1/*` path 必须被 OpenAPI 覆盖。
 - 示例和描述不包含真实 PAT、SMTP password、webhook token、MongoDB URI secret 或 Redis secret。
-- 高风险兼容行为写入 schema 或描述。
+- 高风险 REST 行为写入 schema 或描述。
 
 ### Schemathesis Read-Only Smoke
 
-Schemathesis smoke 只保留 `GET` operation，避免修改数据。`/api/leakage` 的 `status` query 使用 smoke-safe JSON 字符串。写接口仍由 API contract tests 和集成 smoke 覆盖。
+Schemathesis smoke 只保留 `GET` operation，避免修改数据。写接口仍由 API contract tests 和集成 smoke 覆盖。
 
 ### Worker Smoke
 
@@ -112,9 +127,9 @@ server/
 
 以下变更不能只改代码，必须同步补或更新测试：
 
-- 修改 `/api/*` 路径、参数、HTTP method、query/body 结构。
-- 修改任一响应 body 的 `status/msg/result/total` 或字段命名。
-- 修改 `/api/leakage` 筛选、分页、排序、状态处理。
+- 修改 `/api/v1/*` 路径、参数、HTTP method、query/body 结构。
+- 修改成功响应的 `data/meta/links` 或错误响应的 `error/message/detail/request_id`。
+- 修改 `/api/v1/leakages` 筛选、分页、排序、状态处理。
 - 修改任何 settings 增删改查接口。
 - 修改 GitHub token、SMTP password、webhook 等敏感字段展示或存储。
 - 替换 PyMongo API、MongoDB 连接认证或 health check。
@@ -127,4 +142,4 @@ server/
 
 - 每次有意义的后端切片完成后，更新 `PROGRESS.md`。
 - 未运行的测试只能写为“未运行”或“待补”，不能写成通过。
-- 如果测试暴露的是当前兼容行为，不直接改协议，先记录风险和影响。
+- 如果测试暴露的是契约和实现不一致，先记录风险和影响，再按切片范围决定修正实现或契约。

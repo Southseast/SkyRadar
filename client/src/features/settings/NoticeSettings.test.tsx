@@ -51,7 +51,7 @@ describe("NoticeSettings", () => {
   })
 
   it("manages mails, SMTP, and Webhook settings with compatible payloads", async () => {
-    mockedFetchNoticeMails.mockResolvedValue([{ mail: "sec@example.com" }])
+    mockedFetchNoticeMails.mockResolvedValueOnce([{ mail: "sec@example.com" }]).mockResolvedValueOnce([{ mail: "ops@example.com" }])
     mockedFetchSmtpSetting.mockResolvedValue({ host: "smtp.example.com", port: 25, enabled: true })
     mockedFetchWebhookSettings.mockResolvedValueOnce([
       { provider: "dingtalk", webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=abc", enabled: true, has_secret: true },
@@ -60,17 +60,17 @@ describe("NoticeSettings", () => {
       {
         provider: "dingtalk",
         webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=***",
-        webhook_hash: "next-webhook-hash",
+        webhook_id: "next-webhook-id",
         enabled: true,
         has_secret: true,
       },
     ])
-    mockedAddNoticeMail.mockResolvedValue({ status: 201, msg: "添加成功", result: [{ mail: "ops@example.com" }] })
-    mockedDeleteNoticeMail.mockResolvedValue({ status: 404, msg: "删除成功", result: [] })
-    mockedSaveSmtpSetting.mockResolvedValue({ status: 201, msg: "设置成功", result: { host: "smtp.next.com", port: 465, enabled: true } })
-    mockedSaveWebhookSetting.mockResolvedValue({ status: 201, msg: "设置成功", result: 1 })
-    mockedTestWebhookSetting.mockResolvedValue({ status: 201, msg: "已发送，请前往目标群查看", result: [] })
-    mockedDeleteWebhookSetting.mockResolvedValue({ status: 200, msg: "删除成功", result: [] })
+    mockedAddNoticeMail.mockResolvedValue({ message: "添加成功" })
+    mockedDeleteNoticeMail.mockResolvedValue({ message: "删除成功" })
+    mockedSaveSmtpSetting.mockResolvedValue({ message: "设置成功", data: { host: "smtp.next.com", port: 465, enabled: true } })
+    mockedSaveWebhookSetting.mockResolvedValue({ message: "设置成功" })
+    mockedTestWebhookSetting.mockResolvedValue({ message: "已发送，请前往目标群查看" })
+    mockedDeleteWebhookSetting.mockResolvedValue({ message: "删除成功" })
 
     render(<NoticeSettings />)
 
@@ -159,7 +159,7 @@ describe("NoticeSettings", () => {
       expect(mockedDeleteWebhookSetting).toHaveBeenCalledWith(
         expect.objectContaining({
           webhook_url: "https://oapi.dingtalk.com/robot/send?access_token=***",
-          webhook_hash: "next-webhook-hash",
+          webhook_id: "next-webhook-id",
         })
       )
     })

@@ -20,8 +20,8 @@ describe("TaskSchedule", () => {
   })
 
   it("uses defaults for missing setting and saves compatible payload", async () => {
-    mockedFetchTaskSetting.mockResolvedValue({ status: 400, msg: "请配置查询页数和周期", result: null })
-    mockedSaveTaskSetting.mockResolvedValue({ status: 201, msg: "设置成功", result: [] })
+    mockedFetchTaskSetting.mockResolvedValue({ message: "请配置查询页数和周期" })
+    mockedSaveTaskSetting.mockResolvedValue({ message: "设置成功" })
 
     render(<TaskSchedule />)
 

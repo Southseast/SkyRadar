@@ -74,7 +74,7 @@ SkyRadar 是一个 GitHub 开源项目发现系统，面向安全团队、研发
 - `client/src/features/results/*` 承载结果仪表盘、筛选、表格、查询状态和格式化。
 - `client/src/features/settings/*` 承载 GitHub 账号、查询规则、任务调度、黑名单、通知、SMTP 和 webhook 设置。
 - `client/src/components/ui/*` 是通用 UI primitives，页面业务逻辑不得写入此目录。
-- `client/src/lib/api/*` 负责 `/api/*` endpoint、请求参数序列化、响应 shape 适配和敏感字段剔除。
+- `client/src/lib/api/*` 负责 `/api/v1/*` endpoint、请求参数序列化、REST response envelope 适配和敏感字段剔除。
 - `client/src/types/api.ts` 是共享 API 类型边界。
 - `client/src/index.css` 是 Tailwind v4 主题变量和当前设计 token 的实现源。
 

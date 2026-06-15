@@ -36,7 +36,6 @@ DEFAULT_BASE_URL = "http://127.0.0.1"
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 READ_ONLY_METHOD = "get"
 PATH_ITEM_FIELDS = {"summary", "description", "servers", "parameters"}
-LEAKAGE_STATUS_SMOKE_VALUE = '{"security":0,"ignore":0}'
 
 
 def load_openapi(path: Path) -> dict[str, Any]:
@@ -82,39 +81,7 @@ def filter_read_only_get_schema(schema: dict[str, Any]) -> tuple[dict[str, Any],
         raise ValueError("OpenAPI document does not contain any GET operations")
 
     filtered["paths"] = filtered_paths
-    constrain_read_only_smoke_inputs(filtered)
     return filtered, operations
-
-
-def constrain_read_only_smoke_inputs(schema: dict[str, Any]) -> None:
-    """Constrain open string inputs to safe examples in the smoke schema."""
-    leakage_status_parameter = {
-        "name": "status",
-        "in": "query",
-        "required": True,
-        "description": "Smoke-safe JSON string for the leakage status filter.",
-        "schema": {
-            "type": "string",
-            "enum": [LEAKAGE_STATUS_SMOKE_VALUE],
-        },
-        "example": LEAKAGE_STATUS_SMOKE_VALUE,
-    }
-    parameters = schema.get("components", {}).get("parameters", {})
-    leakage_status = parameters.get("LeakageStatusQuery")
-    if isinstance(leakage_status, dict):
-        leakage_status.clear()
-        leakage_status.update(copy.deepcopy(leakage_status_parameter))
-
-    leakage_get = schema.get("paths", {}).get("/api/leakage", {}).get("get")
-    if not isinstance(leakage_get, dict):
-        return
-    normalized_parameters = []
-    for parameter in leakage_get.get("parameters", []):
-        if parameter == {"$ref": "#/components/parameters/LeakageStatusQuery"}:
-            normalized_parameters.append(copy.deepcopy(leakage_status_parameter))
-        else:
-            normalized_parameters.append(parameter)
-    leakage_get["parameters"] = normalized_parameters
 
 
 def find_schemathesis_cli() -> str | None:

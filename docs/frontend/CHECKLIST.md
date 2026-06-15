@@ -54,10 +54,10 @@
 - [ ] Docker build 通过。
 - [ ] 静态资源可访问。
 - [ ] SPA fallback 可用。
-- [ ] `/api/health` 可访问，且 MongoDB/GitHub 子项符合当前后端预期。
-- [ ] `/api/leakage` 列表参数兼容。
-- [ ] `/api/leakage/info` 和 `/api/leakage/code` 详情参数兼容。
-- [ ] `/api/setting/*` 设置页只读链路可用。
+- [ ] `/api/v1/health` 可访问，且 MongoDB/GitHub 子项符合当前后端预期。
+- [ ] `/api/v1/leakages` 列表参数符合 REST 契约。
+- [ ] `/api/v1/leakages/{id}` 和 `/api/v1/leakages/{id}/code` 详情链路符合 REST 契约。
+- [ ] `/api/v1/*` 设置资源只读链路可用。
 - [ ] `/`、`/view/leakage/:id`、`/setting/:tab`、`/?tag=...` 可用。
 - [ ] 多视口检查覆盖桌面、平板和移动端。
 - [ ] 预发或生产形态真实数据只读 smoke 通过，或明确风险接受。

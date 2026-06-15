@@ -1,7 +1,12 @@
 FROM public.ecr.aws/docker/library/node:24-trixie-slim AS frontend-build
+ARG NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+ENV NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY} \
+    NPM_CONFIG_FETCH_RETRIES=5 \
+    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000 \
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
 WORKDIR /app/client
 COPY ./client/package*.json ./
-RUN npm ci
+RUN npm ci --no-audit --no-fund
 COPY ./client ./
 RUN npm run build
 

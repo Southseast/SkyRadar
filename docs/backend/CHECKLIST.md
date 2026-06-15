@@ -5,7 +5,7 @@
 职责边界：
 
 - 本文使用 checkbox 表达“是否已检查”，不解释设计背景。
-- 架构和 API 兼容语义见 `DESIGN.md`，测试策略见 `TESTING.md`，命令和 CI/部署规则见 `IMPLEMENTATION_GUIDE.md`。
+- 架构和 API 契约语义见 `DESIGN.md`，测试策略见 `TESTING.md`，命令和 CI/部署规则见 `IMPLEMENTATION_GUIDE.md`。
 - 风险背景见 `RISKS.md`，当前真实验证结果见 `PROGRESS.md`。
 - 如果某项规则需要长期解释，应更新对应职责文档，再在本文保留简短检查项。
 
@@ -27,21 +27,23 @@
 
 ## 2. API 契约门禁
 
-- [ ] 所有 `/api/*` 路径、HTTP 方法、query/body 参数保持兼容，或已明确版本化。
-- [ ] 除非本切片目标就是契约变更，否则 response body 的 `status/msg/result/total` shape 未改变。
-- [ ] 已区分 HTTP status code 与 body `status` 历史业务字段。
-- [ ] `/api/health` 的特殊 response shape 未被误改成通用包裹结构。
-- [ ] `/api/leakage` 的 `status` query 参数仍按 JSON 字符串兼容，或已同步契约变更和前端 adapter。
-- [ ] DELETE 接口 body `status: 404` 表示删除成功的历史行为未被误改，或已完成版本化决策。
+- [ ] 所有业务接口使用 `/api/v1/*` 路径、复数名词资源、标准 HTTP 方法和精确 HTTP status。
+- [ ] 成功响应使用 `data/meta/links`；列表分页使用 `meta.page`、`meta.page_size` 和 `meta.total`。
+- [ ] 错误响应使用统一 `error/message/detail/request_id` 结构，且不回显敏感 payload。
+- [ ] DELETE 成功使用 HTTP 204 且不返回 body。
+- [ ] `/api/v1/health` 使用标准成功响应结构，依赖不可用时可返回 HTTP 503 和统一错误体。
+- [ ] `/api/v1/leakages` 使用明确 query 字段，不透传 JSON 字符串查询或 Mongo 查询操作符。
+- [ ] 搜索、筛选、排序和分页字段符合 `DESIGN.md` 的 RESTful API 设计规范。
 - [ ] 涉及前端依赖的行为时，已检查 `docs/frontend/IMPLEMENTATION_GUIDE.md` 和前端 adapter 影响。
 - [ ] API 行为变化已同步契约测试；涉及前端依赖时已同步前端 adapter。
 
 ## 3. OpenAPI 和 Swagger 门禁
 
 - [ ] 如新增、删除或改变 API，已同步 `docs/api/openapi.yaml`。
-- [ ] OpenAPI paths 覆盖 `server/api/*/routes.py` 当前注册的 `/api/*`。
+- [ ] OpenAPI paths 只描述最终 `/api/v1/*` 契约。
+- [ ] 如 runtime 已注册 `/api/v1/*` route，OpenAPI 已覆盖这些 route。
 - [ ] 已运行 `python scripts/backend_openapi_secret_scan.py`，OpenAPI 示例不包含真实 GitHub PAT、SMTP password、webhook token、MongoDB URI、Redis secret、内网地址或生产域名。
-- [ ] Swagger UI、ReDoc 和 `/api/openapi.json` 的暴露方式符合生产默认关闭策略。
+- [ ] Swagger UI、ReDoc 和 `/api/v1/openapi.json` 的暴露方式符合生产默认关闭策略。
 - [ ] 如引入自动生成 OpenAPI，已与人工 `docs/api/openapi.yaml` 做差异审查。
 - [ ] 如工具已配置，已运行 OpenAPI schema 校验。
 
@@ -50,7 +52,7 @@
 - [ ] 已运行后端 pytest；如未配置或未运行，已记录原因。
 - [ ] API 行为变化已补或更新 FastAPI TestClient 契约测试。
 - [ ] OpenAPI 变化已补 schema 校验或至少运行 YAML/OpenAPI 解析检查。
-- [ ] 高风险行为已有回归测试：`/api/leakage status` JSON 字符串、DELETE `status: 404`、`/api/health` 特殊 shape。
+- [ ] 高风险行为已有回归测试：`data/meta/links`、错误体、DELETE 204、`/api/v1/health`、敏感字段脱敏。
 - [ ] GitHub、SMTP、webhook、MongoDB、Redis 默认使用 mock、fake 或受控测试环境。
 - [ ] 测试输出、fixture、snapshot、CI artifact 不包含真实 secret、泄露代码或完整敏感资产。
 - [ ] 如引入 Schemathesis，只读 smoke 不覆盖会修改数据的 POST、PATCH、DELETE，除非有隔离环境。
@@ -65,7 +67,7 @@
 - [ ] 错误消息不回显 secret 或完整外部请求 payload。
 - [ ] 日志记录已脱敏，只保留必要状态码、错误类型和摘要。
 - [ ] 通知测试不会默认打生产邮箱或生产 webhook。
-- [ ] 当前 `/api/*` 无应用级鉴权的风险未被新入口扩大。
+- [ ] 当前 `/api/v1/*` 无应用级鉴权的风险未被新入口扩大。
 
 ## 5A. nginx Basic Auth 门禁
 
@@ -74,8 +76,8 @@
 - [ ] 同时设置 `SKYRADAR_BASIC_AUTH_USERNAME` 和 `SKYRADAR_BASIC_AUTH_PASSWORD` 可启用 nginx Basic Auth。
 - [ ] 只配置用户名或只配置密码时容器启动失败。
 - [ ] 未配置 Basic Auth 变量时，本地开发和默认 smoke 行为保持兼容。
-- [ ] 启用 Basic Auth 后，无认证访问页面、静态资源和 `/api/health` 返回 HTTP `401`。
-- [ ] 启用 Basic Auth 后，正确用户名和密码可访问页面和 `/api/health`。
+- [ ] 启用 Basic Auth 后，无认证访问页面、静态资源和 `/api/v1/health` 返回 HTTP `401`。
+- [ ] 启用 Basic Auth 后，正确用户名和密码可访问页面和 `/api/v1/health`。
 - [ ] compose nginx 和 all-in-one healthcheck 在启用 Basic Auth 时携带同一组环境变量认证信息。
 - [ ] htpasswd 文件在运行时生成，不写入 Git、镜像构建层、日志或测试快照。
 - [ ] Basic Auth 密码不出现在 `docker compose logs`、OpenAPI 示例、测试 fixture 或 CI artifact。
@@ -121,7 +123,7 @@
 - [ ] Python 运行时目标符合决策记录，优先 Python 3.13，阻塞时才使用 3.12。
 - [ ] 不依赖 EOL Python 或 EOL Debian 作为目标运行环境。
 - [ ] Dockerfile、supervisor、Gunicorn、nginx 变更已说明影响范围。
-- [ ] `/api` 反向代理行为未改变，或已完成部署验证和回滚设计。
+- [ ] `/api` 反向代理可覆盖 `/api/v1/*`，或已完成部署验证和回滚设计。
 - [ ] Swagger/OpenAPI 文档入口在生产默认关闭，或被认证代理、VPN、内网保护。
 - [ ] 环境变量不在镜像层、日志或文档示例中泄露真实值。
 - [ ] MongoDB 和 Redis 连接配置支持测试环境和生产环境隔离。
@@ -148,7 +150,7 @@
 
 - [ ] 后端 pytest 通过，或已明确阻塞原因和放行风险。
 - [ ] OpenAPI schema 校验通过，或已明确阻塞原因和放行风险。
-- [ ] 关键 API contract smoke 通过：health、leakage 列表、leakage 详情、统计、设置读写。
+- [ ] 关键 API contract smoke 通过：v1 health、leakage 列表、leakage 详情、统计、设置读写。
 - [ ] worker smoke 通过，或本次发布不涉及 worker 且已说明。
 - [ ] Docker/nginx/Gunicorn 或等价部署入口验证通过，或本次发布不涉及部署且已说明。
 - [ ] 安全检查通过：无真实 secret、无新增公网文档入口、无通知测试外发风险。

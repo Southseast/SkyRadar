@@ -27,15 +27,14 @@ def configure_logging():
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:18080"
-DEFAULT_STATUS_FILTER = {"ignore": 0}
 DEFAULT_SETTING_PATHS = (
-    "/api/setting/github",
-    "/api/setting/query",
-    "/api/setting/cron",
-    "/api/setting/blacklist",
-    "/api/setting/notice",
-    "/api/setting/mail",
-    "/api/setting/webhook",
+    "/api/v1/github-accounts",
+    "/api/v1/search-rules",
+    "/api/v1/task-schedules/current",
+    "/api/v1/blacklist-items",
+    "/api/v1/notification-recipients",
+    "/api/v1/mail-settings/current",
+    "/api/v1/webhooks",
 )
 
 
@@ -60,17 +59,12 @@ def parse_args():
     parser.add_argument(
         "--leakage-id",
         default=os.environ.get("SKYRADAR_RELEASE_LEAKAGE_ID"),
-        help="Known leakage id to validate. If omitted, the script reads one from /api/leakage.",
+        help="Known leakage id to validate. If omitted, the script reads one from /api/v1/leakages.",
     )
     parser.add_argument(
         "--tag",
         default=os.environ.get("SKYRADAR_RELEASE_TAG"),
-        help="Optional tag used for /api/leakage and /?tag=... checks.",
-    )
-    parser.add_argument(
-        "--status-filter",
-        default=os.environ.get("SKYRADAR_RELEASE_STATUS_FILTER", json.dumps(DEFAULT_STATUS_FILTER)),
-        help='JSON object passed as /api/leakage status filter, default: {"ignore": 0}',
+        help="Optional tag used for /api/v1/leakages and /?tag=... checks.",
     )
     parser.add_argument(
         "--basic-auth-username",
@@ -118,16 +112,6 @@ def build_url(base_url, path, query=None):
     return url
 
 
-def load_status_filter(value):
-    try:
-        parsed = json.loads(value)
-    except json.JSONDecodeError as error:
-        raise SystemExit("--status-filter must be a JSON object") from error
-    if not isinstance(parsed, dict):
-        raise SystemExit("--status-filter must be a JSON object")
-    return parsed
-
-
 def redact_sensitive(value):
     if isinstance(value, dict):
         return {key: redact_sensitive(item) for key, item in value.items() if key != "password"}
@@ -162,60 +146,61 @@ def http_get_json(base_url, path, query=None, timeout=20, basic_auth=None):
 
 
 def check_health(base_url, timeout, basic_auth=None):
-    result = http_get_json(base_url, "/api/health", timeout=timeout, basic_auth=basic_auth)
+    result = http_get_json(base_url, "/api/v1/health", timeout=timeout, basic_auth=basic_auth)
     payload = result["payload"] if isinstance(result["payload"], dict) else {}
-    github_ok = payload.get("github") is True
-    mongodb = payload.get("mongodb")
-    mongodb_ok = isinstance(mongodb, dict) and float(mongodb.get("ok", 0)) == 1.0
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    github = data.get("github")
+    mongodb = data.get("mongodb")
+    github_ok = isinstance(github, dict) and github.get("ok") is True
+    mongodb_ok = isinstance(mongodb, dict) and mongodb.get("ok") is True
     errors = []
     if result["status"] != 200:
         errors.append("expected HTTP 200")
     if not github_ok:
         errors.append("github health is not true")
     if not mongodb_ok:
-        errors.append("mongodb ok is not 1.0")
+        errors.append("mongodb ok is not true")
     return {"name": "api health", "ok": not errors, "errors": errors, **result}
 
 
-def check_leakage_list(base_url, tag, status_filter, limit, timeout, basic_auth=None):
+def check_leakage_list(base_url, tag, limit, timeout, basic_auth=None):
     query = {
-        "status": json.dumps(status_filter, separators=(",", ":")),
-        "from": 1,
-        "limit": limit,
+        "state": "pending",
+        "page": 1,
+        "page_size": limit,
     }
     if tag:
         query["tag"] = tag
-    result = http_get_json(base_url, "/api/leakage", query=query, timeout=timeout, basic_auth=basic_auth)
+    result = http_get_json(base_url, "/api/v1/leakages", query=query, timeout=timeout, basic_auth=basic_auth)
     payload = result["payload"] if isinstance(result["payload"], dict) else {}
-    rows = payload.get("result") if isinstance(payload.get("result"), list) else []
+    rows = payload.get("data") if isinstance(payload.get("data"), list) else []
+    meta = payload.get("meta") if isinstance(payload.get("meta"), dict) else {}
     errors = []
     if result["status"] != 200:
         errors.append("expected HTTP 200")
-    if payload.get("status") != 200:
-        errors.append("expected business status 200")
     if not rows:
         errors.append("expected at least one leakage result")
-    leakage_id = rows[0].get("_id") if rows and isinstance(rows[0], dict) else None
+    leakage_id = None
+    if rows and isinstance(rows[0], dict):
+        leakage_id = rows[0].get("id") or rows[0].get("_id")
     return {
         "name": "leakage list",
         "ok": not errors,
         "errors": errors,
         "leakage_id": leakage_id,
-        "total": payload.get("total"),
+        "total": meta.get("total"),
         **result,
     }
 
 
 def check_detail_endpoint(base_url, path, leakage_id, timeout, basic_auth=None):
-    result = http_get_json(base_url, path, query={"id": leakage_id}, timeout=timeout, basic_auth=basic_auth)
+    result = http_get_json(base_url, path % leakage_id, timeout=timeout, basic_auth=basic_auth)
     payload = result["payload"] if isinstance(result["payload"], dict) else {}
     errors = []
     if result["status"] != 200:
         errors.append("expected HTTP 200")
-    if payload.get("status") != 200:
-        errors.append("expected business status 200")
-    if payload.get("result") in (None, [], ""):
-        errors.append("expected non-empty result")
+    if payload.get("data") in (None, [], ""):
+        errors.append("expected non-empty data")
     return {"name": path, "ok": not errors, "errors": errors, **result}
 
 
@@ -227,8 +212,8 @@ def check_settings(base_url, timeout, basic_auth=None):
         errors = []
         if result["status"] != 200:
             errors.append("expected HTTP 200")
-        if payload.get("status") not in (200, 400):
-            errors.append("expected known business status")
+        if "data" not in payload:
+            errors.append("expected REST data envelope")
         checks.append({"name": path, "ok": not errors, "errors": errors, **result})
     return checks
 
@@ -285,17 +270,16 @@ def run_release_smoke(args):
     base_url = args.base_url.rstrip("/")
     artifact_dir = Path(args.artifact_dir)
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    status_filter = load_status_filter(args.status_filter)
     basic_auth = basic_auth_header(args.basic_auth_username, args.basic_auth_password)
 
     checks = []
     checks.append(check_health(base_url, args.timeout, basic_auth=basic_auth))
-    leakage_list = check_leakage_list(base_url, args.tag, status_filter, args.limit, args.timeout, basic_auth=basic_auth)
+    leakage_list = check_leakage_list(base_url, args.tag, args.limit, args.timeout, basic_auth=basic_auth)
     checks.append(leakage_list)
     leakage_id = args.leakage_id or leakage_list.get("leakage_id")
     if leakage_id:
-        checks.append(check_detail_endpoint(base_url, "/api/leakage/info", leakage_id, args.timeout, basic_auth=basic_auth))
-        checks.append(check_detail_endpoint(base_url, "/api/leakage/code", leakage_id, args.timeout, basic_auth=basic_auth))
+        checks.append(check_detail_endpoint(base_url, "/api/v1/leakages/%s", leakage_id, args.timeout, basic_auth=basic_auth))
+        checks.append(check_detail_endpoint(base_url, "/api/v1/leakages/%s/code", leakage_id, args.timeout, basic_auth=basic_auth))
     else:
         checks.append(
             {
@@ -324,7 +308,6 @@ def run_release_smoke(args):
         "base_url": base_url,
         "tag": args.tag,
         "leakage_id": leakage_id,
-        "status_filter": status_filter,
         "basic_auth": bool(basic_auth),
         "checks": checks,
         "browser": browser,

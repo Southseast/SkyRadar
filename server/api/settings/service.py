@@ -20,6 +20,30 @@ from integrations import github as github_integration
 WEBHOOK_PROVIDERS = {"dingtalk", "feishu"}
 
 
+class SettingsServiceError(Exception):
+    def __init__(self, status_code, message):
+        super().__init__(message)
+        self.status_code = status_code
+        self.message = message
+
+
+def _require_text(value, field_name):
+    if value is None or not str(value).strip():
+        raise SettingsServiceError(400, f"{field_name} is required")
+    return str(value)
+
+
+def _normalized_text(value, field_name):
+    return _require_text(value, field_name).strip().replace(" ", "")
+
+
+def _mask_secret(value):
+    value = str(value)
+    if len(value) <= 4:
+        return "****"
+    return f"{value[:2]}****{value[-2:]}"
+
+
 def public_webhook_setting(item):
     public_item = dict(item)
     webhook = public_item.get("webhook")
@@ -29,9 +53,7 @@ def public_webhook_setting(item):
             public_item["webhook_url"] = feishu_integration.mask_feishu_webhook_url(webhook)
         else:
             public_item["webhook_url"] = dingtalk_integration.mask_dingtalk_webhook_url(webhook)
-        public_item["webhook_hash"] = hashlib.md5(
-            str(webhook).encode("utf-8")
-        ).hexdigest()
+        public_item["webhook_id"] = hashlib.md5(str(webhook).encode("utf-8")).hexdigest()
     public_item["provider"] = provider
     public_item.pop("webhook", None)
     public_item["has_secret"] = bool(public_item.get("secret"))
@@ -39,160 +61,187 @@ def public_webhook_setting(item):
     return public_item
 
 
-def get_cron():
+def get_task_settings():
     result = setting_repository.get_task_setting({"_id": 0})
-    if result:
-        return {"status": 200, "msg": "获取信息成功", "result": result}
-    return {"status": 400, "msg": "请配置查询页数和周期", "result": result}
+    if not result:
+        raise SettingsServiceError(404, "task settings are not configured")
+    return result
 
 
-def post_cron(page, minute):
+def put_task_settings(page, minute):
     setting_repository.upsert_task_setting(page, minute)
+    task_setting = setting_repository.get_task_setting()
     try:
-        os.kill(setting_repository.get_task_setting().get("pid"), signal.SIGHUP)
+        pid = task_setting.get("pid") if task_setting else None
+        if pid:
+            os.kill(pid, signal.SIGHUP)
     except ProcessLookupError:
         pass
-    result = setting_repository.list_settings({"_id": 0})
-    return {"status": 201, "msg": "设置成功", "result": result}
+    return get_task_settings()
 
 
 def get_github_accounts():
-    result = setting_repository.list_github_accounts()
-    return {"status": 200, "msg": "获取信息成功", "result": result}
+    return setting_repository.list_github_accounts()
 
 
-def post_github_account(username, password):
+def create_github_account(username, password):
+    username = _require_text(username, "username")
+    password = _require_text(password, "password")
     try:
         github = github_integration.create_client(username, password)
         rate = github_integration.search_rate_limit(github)
-        setting_repository.save_github_account(
-            {
-                "_id": hashlib.md5(username.encode("utf-8")).hexdigest(),
-                "username": username,
-                "password": password,
-                "mask_password": password.replace("".join(password[2:-2]), "****"),
-                "addat": int(time.time()),
-                "rate_limit": rate["limit"],
-                "rate_remaining": rate["remaining"],
-            }
-        )
-        result = setting_repository.list_github_accounts()
-        return {"status": 201, "msg": "添加成功", "result": result}
-    except github_integration.BadCredentialsException:
-        return {"status": 401, "msg": "认证失败，请检查账号是否可用", "result": []}
+    except github_integration.BadCredentialsException as error:
+        raise SettingsServiceError(401, "GitHub credentials are invalid") from error
+
+    document = {
+        "_id": hashlib.md5(username.encode("utf-8")).hexdigest(),
+        "username": username,
+        "password": password,
+        "mask_password": _mask_secret(password),
+        "addat": int(time.time()),
+        "rate_limit": rate["limit"],
+        "rate_remaining": rate["remaining"],
+    }
+    setting_repository.save_github_account(document)
+    public_document = dict(document)
+    public_document.pop("_id", None)
+    public_document.pop("password", None)
+    return public_document
 
 
-def delete_github_account(username=None):
-    setting_repository.delete_github_account(username)
-    result = setting_repository.list_github_accounts()
-    return {"status": 404, "msg": "删除成功", "result": result}
+def delete_github_account(username):
+    username = _require_text(username, "username")
+    delete_result = setting_repository.delete_github_account(username)
+    if getattr(delete_result, "deleted_count", 0) == 0:
+        raise SettingsServiceError(404, "GitHub account was not found")
+    return None
 
 
-def get_query():
-    result = setting_repository.list_queries()
-    return {"status": 200, "msg": "获取信息成功", "result": result}
+def get_search_rules():
+    return setting_repository.list_queries()
 
 
-def post_query(keyword, tag, enabled=True):
-    args = {"keyword": keyword, "tag": tag, "enabled": enabled}
-    if setting_repository.query_exists(args.get("tag")):
-        setting_repository.update_query(args.get("tag"), args)
-        msg = "更新成功"
-    else:
-        new_query = dict(args)
-        new_query["_id"] = hashlib.md5(
-            "".join([str(value) for value in new_query.values()]).encode("utf-8")
-        ).hexdigest()
-        setting_repository.insert_query(new_query)
-        msg = "添加成功"
-    result = setting_repository.list_queries()
-    return {"status": 200, "msg": msg, "result": result}
+def create_search_rule(keyword, tag, enabled=True):
+    keyword = _require_text(keyword, "keyword")
+    tag = _require_text(tag, "tag")
+    if setting_repository.query_exists(tag):
+        raise SettingsServiceError(409, "search rule tag already exists")
+    document = {"keyword": keyword, "tag": tag, "enabled": enabled}
+    document["_id"] = hashlib.md5("".join([str(value) for value in document.values()]).encode("utf-8")).hexdigest()
+    setting_repository.insert_query(document)
+    return document
 
 
-def delete_query(_id=None, tag=None):
-    setting_repository.delete_query(_id)
+def put_search_rule(tag, keyword, enabled=True):
+    tag = _require_text(tag, "tag")
+    keyword = _require_text(keyword, "keyword")
+    if not setting_repository.query_exists(tag):
+        raise SettingsServiceError(404, "search rule was not found")
+    values = {"keyword": keyword, "tag": tag, "enabled": enabled}
+    setting_repository.update_query(tag, values)
+    return values
+
+
+def delete_search_rule(tag):
+    tag = _require_text(tag, "tag")
+    delete_result = setting_repository.delete_query_by_tag(tag)
+    if getattr(delete_result, "deleted_count", 0) == 0:
+        raise SettingsServiceError(404, "search rule was not found")
     setting_repository.delete_results_by_tag(tag)
-    result = setting_repository.list_queries()
-    return {"status": 404, "msg": "删除成功", "result": result}
+    return None
 
 
-def get_blacklist():
-    result = setting_repository.list_blacklist()
-    return {"status": 200, "msg": "获取信息成功", "result": result}
+def get_blacklist_items():
+    return setting_repository.list_blacklist()
 
 
-def post_blacklist(text):
-    normalized = text.strip().replace(" ", "")
-    setting_repository.save_blacklist(
-        {
-            "_id": hashlib.md5(normalized.encode("utf-8")).hexdigest(),
-            "text": normalized,
-        }
-    )
-    result = setting_repository.list_blacklist()
-    return {"status": 201, "msg": "添加成功", "result": result}
+def create_blacklist_item(text):
+    normalized = _normalized_text(text, "text")
+    document = {
+        "_id": hashlib.md5(normalized.encode("utf-8")).hexdigest(),
+        "text": normalized,
+    }
+    setting_repository.save_blacklist(document)
+    return {"text": normalized}
 
 
-def delete_blacklist(text=None):
-    setting_repository.delete_blacklist(text)
-    result = setting_repository.list_blacklist()
-    return {"status": 404, "msg": "删除成功", "result": result}
+def delete_blacklist_item(text):
+    normalized = _normalized_text(text, "text")
+    delete_result = setting_repository.delete_blacklist(normalized)
+    if getattr(delete_result, "deleted_count", 0) == 0:
+        raise SettingsServiceError(404, "blacklist item was not found")
+    return None
 
 
-def get_notice():
-    result = setting_repository.list_notices()
-    return {"status": 200, "msg": "获取信息成功", "result": result}
+def get_notification_recipients():
+    return setting_repository.list_notices()
 
 
-def post_notice(mail):
-    normalized = mail.strip().replace(" ", "")
-    setting_repository.insert_notice(
-        {
-            "_id": hashlib.md5(normalized.encode("utf-8")).hexdigest(),
-            "mail": normalized,
-        }
-    )
-    result = setting_repository.list_notices()
-    return {"status": 201, "msg": "添加成功", "result": result}
+def create_notification_recipient(mail):
+    normalized = _normalized_text(mail, "mail")
+    document = {
+        "_id": hashlib.md5(normalized.encode("utf-8")).hexdigest(),
+        "mail": normalized,
+    }
+    setting_repository.insert_notice(document)
+    return {"mail": normalized}
 
 
-def delete_notice(mail=None):
-    setting_repository.delete_notice(mail)
-    result = setting_repository.list_notices()
-    return {"status": 404, "msg": "删除成功", "result": result}
+def delete_notification_recipient(mail):
+    normalized = _normalized_text(mail, "mail")
+    delete_result = setting_repository.delete_notice(normalized)
+    if getattr(delete_result, "deleted_count", 0) == 0:
+        raise SettingsServiceError(404, "notification recipient was not found")
+    return None
 
 
-def get_mail():
-    result = setting_repository.get_mail_setting()
-    return {"status": 200, "msg": "获取信息成功", "result": result}
+def get_mail_settings():
+    return setting_repository.get_mail_setting()
 
 
-def post_mail(setting):
-    if not setting.get("password"):
-        setting.pop("password", None)
-    setting_repository.upsert_mail_setting(setting)
-    result = setting_repository.get_mail_setting()
-    return {"status": 201, "msg": "设置成功", "result": result}
+def put_mail_settings(setting):
+    values = dict(setting)
+    if not values.get("password"):
+        values.pop("password", None)
+    setting_repository.upsert_mail_setting(values)
+    return setting_repository.get_mail_setting()
 
 
-def get_webhook():
-    result = [public_webhook_setting(item) for item in setting_repository.list_webhook_settings()]
-    return {"status": 200, "msg": "获取信息成功", "result": result}
+def get_webhook_settings():
+    return [public_webhook_setting(item) for item in setting_repository.list_webhook_settings()]
 
 
 def _validate_webhook(provider, webhook):
     if provider not in WEBHOOK_PROVIDERS:
-        return "不支持的 webhook 类型"
+        return "unsupported webhook provider"
     if not webhook:
-        return "请输入 webhook 地址"
+        return "webhook_url is required"
     parsed_webhook = urlparse(webhook)
     if parsed_webhook.scheme != "https":
-        return "错误的 webhook 地址"
+        return "webhook_url must be an https URL"
     if provider == "dingtalk" and not dingtalk_integration.is_dingtalk_webhook(webhook):
-        return "错误的钉钉 webhook 地址"
+        return "invalid DingTalk webhook URL"
     if provider == "feishu" and not feishu_integration.is_feishu_webhook(webhook):
-        return "错误的飞书 webhook 地址"
+        return "invalid Feishu webhook URL"
     return None
+
+
+def _validated_webhook_args(params):
+    provider = params.get("provider")
+    webhook = params.get("webhook_url")
+    secret = (params.get("secret") or "").strip()
+    validation_error = _validate_webhook(provider, webhook)
+    if validation_error:
+        raise SettingsServiceError(400, validation_error)
+    if not secret:
+        raise SettingsServiceError(400, "webhook secret is required")
+    return {
+        "provider": provider,
+        "webhook": webhook,
+        "secret": secret,
+        "domain": params.get("domain"),
+        "enabled": params.get("enabled", False),
+    }
 
 
 def _build_webhook_test_payload(provider, domain):
@@ -223,50 +272,37 @@ def _webhook_response_message(provider, response):
     return payload.get("errmsg") or str(payload)
 
 
-def post_webhook(params):
-    provider = params.get("provider")
-    webhook = params.get("webhook_url")
-    secret = (params.get("secret") or "").strip()
-    validation_error = _validate_webhook(provider, webhook)
-    if validation_error:
-        return {"status": 400, "msg": validation_error, "result": []}
-    if not secret:
-        return {"status": 400, "msg": "webhook 必须配置加签 Secret", "result": []}
-
-    args = {
-        "provider": provider,
-        "webhook": webhook,
-        "secret": secret,
-        "domain": params.get("domain"),
-        "enabled": params.get("enabled", False),
-        "test": params.get("test", False),
-    }
-    if args.get("test"):
-        test_content = _build_webhook_test_payload(provider, args.get("domain"))
-        webhook_response = _post_webhook(provider, webhook, secret, test_content)
-        if webhook_response.ok:
-            if _webhook_test_succeeded(provider, webhook_response):
-                return {"status": 201, "msg": "已发送，请前往目标群查看", "result": []}
-            return {
-                "status": 400,
-                "msg": "发送失败，WebHook 响应: {}".format(_webhook_response_message(provider, webhook_response)),
-                "result": [],
-            }
-        return {"status": 400, "msg": "发送失败，请检查服务器网络", "result": []}
-
-    args.pop("test")
+def create_webhook_setting(params):
+    args = _validated_webhook_args(params)
     setting_repository.upsert_webhook_setting(args.get("webhook"), args)
-    result = setting_repository.count_webhook_setting(args.get("webhook"))
-    if result > 0:
-        return {"status": 201, "msg": "设置成功", "result": result}
-    return {"status": 400, "msg": "设置失败", "result": result}
+    if setting_repository.count_webhook_setting(args.get("webhook")) == 0:
+        raise SettingsServiceError(400, "webhook setting could not be saved")
+    return public_webhook_setting(args)
 
 
-def delete_webhook(webhook_url=None, webhook_hash=None):
-    webhook = webhook_url
-    if webhook_hash and not webhook:
-        webhook = setting_repository.find_webhook_url_by_hash(webhook_hash)
+def test_webhook_delivery(params):
+    args = _validated_webhook_args(params)
+    test_content = _build_webhook_test_payload(args.get("provider"), args.get("domain"))
+    webhook_response = _post_webhook(
+        args.get("provider"),
+        args.get("webhook"),
+        args.get("secret"),
+        test_content,
+    )
+    if not webhook_response.ok:
+        raise SettingsServiceError(400, "webhook delivery failed; check server network access")
+    if not _webhook_test_succeeded(args.get("provider"), webhook_response):
+        detail = _webhook_response_message(args.get("provider"), webhook_response)
+        raise SettingsServiceError(400, f"webhook delivery failed: {detail}")
+    return {"delivered": True, "provider": args.get("provider")}
+
+
+def delete_webhook_setting(webhook_id):
+    webhook_id = _require_text(webhook_id, "webhook_id")
+    webhook = setting_repository.find_webhook_url_by_id(webhook_id)
+    if not webhook:
+        raise SettingsServiceError(404, "webhook setting was not found")
     delete_result = setting_repository.delete_webhook_setting(webhook)
-    if delete_result.deleted_count == 1:
-        return {"status": 200, "msg": "删除成功", "result": []}
-    return {"status": 404, "msg": "删除失败", "result": []}
+    if getattr(delete_result, "deleted_count", 0) == 0:
+        raise SettingsServiceError(404, "webhook setting was not found")
+    return None

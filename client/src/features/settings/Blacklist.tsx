@@ -62,9 +62,9 @@ export function Blacklist() {
     setSaving(true)
     try {
       const response = await addBlacklistItem(value)
-      setItems(response.result ?? [])
+      setItems(await fetchBlacklist())
       setText("")
-      setNotice(response.msg ?? "添加成功")
+      setNotice(response.message ?? "添加成功")
     } catch (requestError) {
       setError(getErrorMessage(requestError))
     } finally {
@@ -79,8 +79,8 @@ export function Blacklist() {
 
     try {
       const response = await deleteBlacklistItem(item.text)
-      setItems(response.result ?? [])
-      setNotice(response.msg ?? "删除成功")
+      setItems((current) => current.filter((currentItem) => currentItem.text !== item.text))
+      setNotice(response.message ?? "删除成功")
     } catch (requestError) {
       setError(getErrorMessage(requestError))
     } finally {

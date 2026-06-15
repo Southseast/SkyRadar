@@ -5,6 +5,11 @@ x-skyradar-image: &skyradar-image
   build:
     context: .
     dockerfile: Dockerfile
+    args:
+      NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
 
 x-skyradar-environment: &skyradar-environment
   MONGODB_URI: mongodb://mongo:27017
@@ -25,7 +30,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8888/api/health >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8888/api/v1/health >/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -45,7 +50,7 @@ services:
       skyradar:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$$SKYRADAR_BASIC_AUTH_USERNAME\" ] && [ -n \"$$SKYRADAR_BASIC_AUTH_PASSWORD\" ]; then curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/health >/dev/null; else curl -fsS http://127.0.0.1/api/health >/dev/null; fi || exit 1"]
+      test: ["CMD-SHELL", "if [ -n \"$$SKYRADAR_BASIC_AUTH_USERNAME\" ] && [ -n \"$$SKYRADAR_BASIC_AUTH_PASSWORD\" ]; then curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/v1/health >/dev/null; else curl -fsS http://127.0.0.1/api/v1/health >/dev/null; fi || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -86,6 +91,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
     profiles:
       - all-in-one
     ports:
@@ -99,7 +109,7 @@ services:
       mongo:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$$SKYRADAR_BASIC_AUTH_USERNAME\" ] && [ -n \"$$SKYRADAR_BASIC_AUTH_PASSWORD\" ]; then curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/health >/dev/null; else curl -fsS http://127.0.0.1/api/health >/dev/null; fi || exit 1"]
+      test: ["CMD-SHELL", "if [ -n \"$$SKYRADAR_BASIC_AUTH_USERNAME\" ] && [ -n \"$$SKYRADAR_BASIC_AUTH_PASSWORD\" ]; then curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/v1/health >/dev/null; else curl -fsS http://127.0.0.1/api/v1/health >/dev/null; fi || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5

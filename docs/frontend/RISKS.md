@@ -13,7 +13,7 @@
 
 状态：已知风险
 
-描述：当前 `/api/*` 访问控制主要依赖部署网络边界或反向代理保护。
+描述：当前 `/api/v1/*` 访问控制主要依赖部署网络边界或反向代理保护。
 
 影响：服务暴露到不可信网络时，攻击者可能查看结果、修改规则、删除配置或调整通知。
 
@@ -23,17 +23,17 @@
 - 部署环境应通过网络边界、反向代理认证、VPN 或防火墙限制访问。
 - 应用级鉴权作为后端独立工作推进。
 
-## R002 - 后端 response shape 不统一
+## R002 - REST response envelope 漂移
 
 状态：已知风险
 
-描述：大多数接口返回 `status/msg/result`，但 `/api/health` 等接口结构不同；部分 DELETE 接口用 body `status=404` 表示成功。
+描述：前端 adapter 以 `{data, meta?, links?}` 成功响应和 `{error, message, detail?, request_id?}` 错误响应为边界。如果后端 runtime、OpenAPI 或 mock 数据漂移，页面容易误判成功、失败或分页状态。
 
-影响：页面如果直接解释后端 response，容易误判成功或失败。
+影响：页面如果绕过 adapter 或按旧协议解释 response，容易误判成功或失败。
 
 缓解：
 
-- API adapter 统一兼容差异。
+- API adapter 统一解释 REST envelope。
 - 页面组件不直接解释底层后端细节。
 - 新发现写入 `IMPLEMENTATION_GUIDE.md`。
 
@@ -90,7 +90,7 @@
 缓解：
 
 - 发布前执行 Release Gate。
-- Docker/nginx 变更必须验证静态资源、SPA fallback 和 `/api/health`。
+- Docker/nginx 变更必须验证静态资源、SPA fallback 和 `/api/v1/health`。
 - 回滚方式使用 Git 版本或镜像版本。
 
 ## R007 - UI 风格漂移
@@ -135,17 +135,17 @@
 - 静态资源来源保持 `client/dist`。
 - Apple Silicon 本地验证如遇架构问题，可显式使用 `--platform linux/amd64`。
 
-## R010 - `/api/health` 子项复验风险
+## R010 - `/api/v1/health` 子项复验风险
 
 状态：需目标环境复验
 
-描述：前端发布门禁需要读取 `/api/health`，但 HTTP 200 不代表 MongoDB/GitHub 子项健康。
+描述：前端发布门禁需要读取 `/api/v1/health`，但 HTTP 200 不代表 MongoDB/GitHub 子项健康。
 
 影响：静态资源可用但后端依赖异常，页面仍可能无法正常工作。
 
 缓解：
 
-- Release Gate 必须检查 `/api/health` 子项。
+- Release Gate 必须检查 `/api/v1/health` 子项。
 - 目标环境发布前按实际 MongoDB、GitHub 网络和认证配置复验。
 
 ## R011 - GitHub 账号响应回传 secret

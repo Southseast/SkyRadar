@@ -408,7 +408,7 @@ def check_api_service(args, services):
 
 
 def request_health(base_url, timeout):
-    url = urllib.parse.urljoin(base_url.rstrip("/") + "/", "api/health")
+    url = urllib.parse.urljoin(base_url.rstrip("/") + "/", "api/v1/health")
     request = smoke_request(
         url,
         {"Accept": "application/json"},
@@ -428,8 +428,11 @@ def request_health(base_url, timeout):
     except json.JSONDecodeError as error:
         raise SmokeFailure("HTTP health response is not JSON: %s" % error) from error
 
-    mongodb = payload.get("mongodb")
-    if not isinstance(mongodb, dict) or mongodb.get("ok") not in (1, 1.0, True):
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        raise SmokeFailure("HTTP health response is missing REST data envelope: %r" % payload)
+    mongodb = data.get("mongodb")
+    if not isinstance(mongodb, dict) or mongodb.get("ok") is not True:
         raise SmokeFailure("HTTP health MongoDB payload is not healthy: %r" % payload)
     return {"url": url, "status": status, "body": payload}
 
@@ -642,7 +645,7 @@ def run(args):
         checks.append({"name": "API service process boundary", "ok": True, "detail": api_service})
 
         health = request_health("http://127.0.0.1:%s" % args.http_port, timeout=20)
-        checks.append({"name": "HTTP /api/health 200", "ok": True, "detail": health})
+        checks.append({"name": "HTTP /api/v1/health 200", "ok": True, "detail": health})
 
         static_index = request_static_index("http://127.0.0.1:%s" % args.http_port, timeout=20)
         checks.append({"name": "HTTP static index 200", "ok": True, "detail": static_index})

@@ -2,7 +2,8 @@
 # @File        : test_mail_contract.py
 # @Author      : NanMing
 # @Date        : 2026/6/8 12:09
-# @Description : Tests settings mail contract behavior.
+# @Description : Tests settings mail REST contract behavior.
+
 
 def _project(document, projection):
     projected = dict(document)
@@ -12,7 +13,7 @@ def _project(document, projection):
     return projected
 
 
-def test_mail_setting_get_contract_excludes_password(client, monkeypatch):
+def test_mail_setting_get_excludes_password(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
@@ -38,14 +39,12 @@ def test_mail_setting_get_contract_excludes_password(client, monkeypatch):
 
     monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
 
-    response = client.get("/api/setting/mail")
+    response = client.get("/api/v1/mail-settings/current")
 
     assert response.status_code == 200
     body = response.get_json()
     assert body == {
-        "status": 200,
-        "msg": "获取信息成功",
-        "result": {
+        "data": {
             "key": "mail",
             "from": "skyradar@example.com",
             "host": "smtp.example.com",
@@ -55,18 +54,16 @@ def test_mail_setting_get_contract_excludes_password(client, monkeypatch):
             "domain": "https://skyradar.example.com",
             "enabled": True,
             "test": False,
-        },
+        }
     }
-    assert "password" not in body["result"]
+    assert "password" not in body["data"]
     assert captured == {
         "filters": {"key": "mail"},
         "projection": {"_id": 0, "password": 0},
     }
 
 
-def test_mail_setting_post_contract_saves_password_but_excludes_it_from_response(
-    client, monkeypatch
-):
+def test_mail_setting_put_saves_password_but_excludes_it_from_response(client, monkeypatch):
     from api.settings import repository as setting
 
     captured = {}
@@ -87,8 +84,8 @@ def test_mail_setting_post_contract_saves_password_but_excludes_it_from_response
 
     monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
 
-    response = client.post(
-        "/api/setting/mail",
+    response = client.put(
+        "/api/v1/mail-settings/current",
         json={
             "from": "skyradar@example.com",
             "host": "smtp.example.com",
@@ -105,9 +102,7 @@ def test_mail_setting_post_contract_saves_password_but_excludes_it_from_response
     assert response.status_code == 200
     body = response.get_json()
     assert body == {
-        "status": 201,
-        "msg": "设置成功",
-        "result": {
+        "data": {
             "key": "mail",
             "from": "skyradar@example.com",
             "host": "smtp.example.com",
@@ -117,9 +112,9 @@ def test_mail_setting_post_contract_saves_password_but_excludes_it_from_response
             "domain": "https://skyradar.example.com",
             "enabled": True,
             "test": False,
-        },
+        }
     }
-    assert "password" not in body["result"]
+    assert "password" not in body["data"]
     assert captured["update_filters"] == {"key": "mail"}
     assert captured["update"]["$set"]["key"] == "mail"
     assert captured["update"]["$set"]["password"] == "smtp-secret"
@@ -128,7 +123,7 @@ def test_mail_setting_post_contract_saves_password_but_excludes_it_from_response
     assert captured["projection"] == {"_id": 0, "password": 0}
 
 
-def test_mail_setting_post_without_password_does_not_overwrite_existing_password(
+def test_mail_setting_put_without_password_does_not_overwrite_existing_password(
     client, monkeypatch
 ):
     from api.settings import repository as setting
@@ -161,8 +156,8 @@ def test_mail_setting_post_without_password_does_not_overwrite_existing_password
 
     monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
 
-    response = client.post(
-        "/api/setting/mail",
+    response = client.put(
+        "/api/v1/mail-settings/current",
         json={
             "from": "skyradar@example.com",
             "host": "smtp.changed.example.com",
@@ -178,9 +173,7 @@ def test_mail_setting_post_without_password_does_not_overwrite_existing_password
     assert response.status_code == 200
     body = response.get_json()
     assert body == {
-        "status": 201,
-        "msg": "设置成功",
-        "result": {
+        "data": {
             "key": "mail",
             "from": "skyradar@example.com",
             "host": "smtp.changed.example.com",
@@ -190,8 +183,8 @@ def test_mail_setting_post_without_password_does_not_overwrite_existing_password
             "domain": "http://127.0.0.1:18080",
             "enabled": True,
             "test": False,
-        },
+        }
     }
     assert "password" not in captured["update"]["$set"]
     assert stored_document["password"] == "existing-secret"
-    assert "password" not in body["result"]
+    assert "password" not in body["data"]
