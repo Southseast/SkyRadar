@@ -235,6 +235,8 @@ docker build --platform linux/amd64 -t skyradar .
 compose 一键启动：
 
 ```bash
+SKYRADAR_BASIC_AUTH_USERNAME=admin \
+SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
 docker compose up --build -d
 ```
 

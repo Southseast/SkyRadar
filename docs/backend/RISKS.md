@@ -189,9 +189,9 @@
 
 ## R013 - 任务调度周期与 Huey crontab 耦合
 
-状态：已知风险
+状态：已缓解，保留防回归风险
 
-描述：如果把用户配置的 `minute` 直接绑定到 Huey periodic crontab，`PUT /api/v1/task-schedules/current` 后可能需要 SIGHUP、worker 重启或动态重载 crontab 才能生效；多 worker 或连续 tick 下也可能重复 enqueue 同一到期周期。
+描述：历史风险是把用户配置的 `minute` 直接绑定到 Huey periodic crontab，`PUT /api/v1/task-schedules/current` 后可能需要 SIGHUP、worker 重启或动态重载 crontab 才能生效；多 worker 或连续 tick 下也可能重复 enqueue 同一到期周期。当前实现已改为固定 tick 加 MongoDB 到期状态，风险保留为防回归项。
 
 影响：任务周期更新不及时、调度与 MongoDB setting 不一致、重复 GitHub 搜索、重复通知、`next_due_at` 停滞或漂移。
 

@@ -132,13 +132,19 @@ docker compose down
 修改对外端口：
 
 ```bash
-SKYRADAR_HTTP_PORT=8080 docker compose up --build -d
+SKYRADAR_BASIC_AUTH_USERNAME=admin \
+SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
+SKYRADAR_HTTP_PORT=8080 \
+docker compose up --build -d
 ```
 
 启用 Swagger UI：
 
 ```bash
-SKYRADAR_API_DOCS_ENABLED=1 docker compose up --build -d
+SKYRADAR_BASIC_AUTH_USERNAME=admin \
+SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
+SKYRADAR_API_DOCS_ENABLED=1 \
+docker compose up --build -d
 ```
 
 启用后访问：
@@ -247,7 +253,7 @@ MONGODB_URI=mongodb://127.0.0.1:27017 \
 REDIS_HOST=127.0.0.1 \
 uv run --no-project --python 3.13 \
   --with-requirements ../deploy/pyenv/requirements-dev.txt \
-  huey_consumer.py workers.huey_app.huey
+  huey_consumer.py workers.huey -k process -w 4
 ```
 
 ## 测试与验证
@@ -292,12 +298,16 @@ uv run --no-project --python 3.13 \
 默认拆分拓扑：
 
 ```bash
+SKYRADAR_BASIC_AUTH_USERNAME=admin \
+SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
 docker compose up --build -d
 ```
 
 短期单容器兼容模式：
 
 ```bash
+SKYRADAR_BASIC_AUTH_USERNAME=admin \
+SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
 docker compose --profile all-in-one up --build -d skyradar-all-in-one mongo
 ```
 
@@ -314,6 +324,8 @@ docker run -d \
   --name skyradar \
   -p 80:80 \
   -e MONGODB_URI=mongodb://username:password@host:27017/skyradar \
+  -e SKYRADAR_BASIC_AUTH_USERNAME=admin \
+  -e SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
   skyradar
 ```
 

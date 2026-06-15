@@ -67,12 +67,12 @@ def parse_args():
     parser.add_argument(
         "--basic-auth-username",
         default=os.environ.get("SKYRADAR_BASIC_AUTH_USERNAME"),
-        help="Optional nginx Basic Auth username. Defaults to $SKYRADAR_BASIC_AUTH_USERNAME.",
+        help="nginx Basic Auth username when the target enables Basic Auth. Defaults to $SKYRADAR_BASIC_AUTH_USERNAME.",
     )
     parser.add_argument(
         "--basic-auth-password",
         default=os.environ.get("SKYRADAR_BASIC_AUTH_PASSWORD"),
-        help="Optional nginx Basic Auth password. Defaults to $SKYRADAR_BASIC_AUTH_PASSWORD; never printed.",
+        help="nginx Basic Auth password when the target enables Basic Auth. Defaults to $SKYRADAR_BASIC_AUTH_PASSWORD; never printed.",
     )
     parser.add_argument(
         "--viewport",
