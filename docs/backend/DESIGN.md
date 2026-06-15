@@ -148,12 +148,22 @@ server/
 - 只负责 Huey app、任务注册、调度入口和任务参数反序列化。
 - 调用 service 完成 GitHub 搜索、rate limit 更新、通知发送和任务状态更新。
 - 提供 worker smoke 可验证的最小任务。
+- Huey periodic task 使用固定 tick 作为唤醒入口；真实任务周期由 MongoDB task setting 中的 `minute` 和 `next_due_at` 控制。
 
 禁止：
 
 - 在 Huey task 中堆叠大段 MongoDB、GitHub SDK、邮件和 webhook 逻辑。
 - 在 worker import 阶段执行不可控外部请求。
 - 让 worker 的任务调度变更隐式改变 API 契约。
+
+调度语义：
+
+- 固定 tick 只负责定期检查是否存在到期任务，不把用户配置的 `minute` 动态编译进 Huey crontab。
+- MongoDB task setting 是调度事实来源；`minute` 表示业务周期，`next_due_at` 表示下一次允许 enqueue 的时间。
+- Worker claim 到期任务必须是原子操作；同一轮或多个 worker 并发检查时，最多一个 worker 能把同一到期任务推进到 enqueue 状态。
+- enqueue 成功后必须按当前 MongoDB task setting 的 `minute` 推进 `next_due_at`，避免下一次固定 tick 重复投递同一周期任务。
+- `PUT /api/v1/task-schedules/current` 更新 `minute` 后，新周期应在下一次固定 tick 或当前进行中的检查中尽快按 MongoDB setting 生效；不得依赖 SIGHUP 或动态重载 Huey crontab 才能应用新周期。
+- 如果任务执行失败，失败处理不得回退已经原子 claim 的 `next_due_at`，重试、补偿或告警必须作为独立语义设计并覆盖测试。
 
 ## FastAPI 架构规则
 
@@ -294,7 +304,7 @@ server/
 - 成功响应使用 `data/meta/links`；删除成功且无需返回资源时使用 HTTP 204 且无 body。
 - 错误响应使用 `error/message/detail/request_id`，HTTP status 必须与错误语义一致。
 - 写接口默认接收 `application/json`，表单请求不属于 REST 契约要求。
-- 当前 API 无应用级鉴权；启用 nginx Basic Auth 时，鉴权发生在反向代理层，不改变 FastAPI 业务契约。
+- 当前 API 无应用级鉴权；默认启用 nginx Basic Auth 时，鉴权发生在反向代理层，不改变 FastAPI 业务契约。
 - Swagger 示例、测试快照和日志不能包含真实 GitHub PAT、SMTP password、webhook token、MongoDB URI secret 或 Redis secret。
 
 机器契约范围：
@@ -316,7 +326,7 @@ server/
 
 - GitHub 账号使用 `/api/v1/github-accounts` 和 `/api/v1/github-accounts/{username}`；响应不得包含原始 token。
 - 查询规则使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`。
-- 任务调度使用 `/api/v1/task-schedules/current`。
+- 任务调度使用 `/api/v1/task-schedules/current`；`minute` 更新写入 MongoDB task setting 后由固定 tick worker 读取，实际调度周期由 `minute` 和 `next_due_at` 决定，不通过 SIGHUP 动态改 Huey crontab。
 - 黑名单使用 `/api/v1/blacklist-items` 和 `/api/v1/blacklist-items/{text}`。
 - 邮件通知接收人使用 `/api/v1/notification-recipients` 和 `/api/v1/notification-recipients/{mail}`。
 - SMTP 配置使用 `/api/v1/mail-settings/current`；响应不得包含 SMTP password。

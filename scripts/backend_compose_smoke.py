@@ -31,6 +31,8 @@ def configure_logging():
 
 DEFAULT_HTTP_PORT = 18080
 DEFAULT_TIMEOUT = 600.0
+DEFAULT_SMOKE_BASIC_AUTH_USERNAME = "skyradar-smoke"
+DEFAULT_SMOKE_BASIC_AUTH_PASSWORD = "skyradar-smoke-password"
 MONGO_SMOKE_DATABASE = "skyradar_compose_smoke"
 MONGO_SMOKE_COLLECTION = "backend_compose_smoke"
 LOG_FAILURE_PATTERNS = (
@@ -61,12 +63,16 @@ class Services:
 
 
 def basic_auth_headers_from_env():
+    enabled = os.environ.get("SKYRADAR_BASIC_AUTH_ENABLED", "true").strip().lower()
+    if enabled in {"0", "false", "no", "off"}:
+        return {}
     username = os.environ.get("SKYRADAR_BASIC_AUTH_USERNAME", "")
     password = os.environ.get("SKYRADAR_BASIC_AUTH_PASSWORD", "")
     if bool(username) != bool(password):
         raise SmokeFailure("SKYRADAR_BASIC_AUTH_USERNAME and SKYRADAR_BASIC_AUTH_PASSWORD must be set together")
     if not username:
-        return {}
+        username = DEFAULT_SMOKE_BASIC_AUTH_USERNAME
+        password = DEFAULT_SMOKE_BASIC_AUTH_PASSWORD
     token = base64.b64encode(("%s:%s" % (username, password)).encode("utf-8")).decode("ascii")
     return {"Authorization": "Basic %s" % token}
 
@@ -145,6 +151,13 @@ def compose_command(args, *parts):
 def compose_env(args):
     env = os.environ.copy()
     env["SKYRADAR_HTTP_PORT"] = str(args.http_port)
+    enabled = env.get("SKYRADAR_BASIC_AUTH_ENABLED", "true").strip().lower()
+    if enabled not in {"0", "false", "no", "off"}:
+        env["SKYRADAR_BASIC_AUTH_ENABLED"] = "true"
+        if not env.get("SKYRADAR_BASIC_AUTH_USERNAME"):
+            env["SKYRADAR_BASIC_AUTH_USERNAME"] = DEFAULT_SMOKE_BASIC_AUTH_USERNAME
+        if not env.get("SKYRADAR_BASIC_AUTH_PASSWORD"):
+            env["SKYRADAR_BASIC_AUTH_PASSWORD"] = DEFAULT_SMOKE_BASIC_AUTH_PASSWORD
     if args.platform:
         env["SKYRADAR_PLATFORM"] = args.platform
     else:
@@ -596,6 +609,7 @@ def check_logs(args):
 
 
 def planned_payload(args):
+    env = compose_env(args)
     service_names = []
     try:
         service_names = available_services(args)
@@ -613,6 +627,11 @@ def planned_payload(args):
         "environment": {
             "SKYRADAR_HTTP_PORT": str(args.http_port),
             "SKYRADAR_PLATFORM": args.platform or "<native>",
+            "SKYRADAR_BASIC_AUTH_ENABLED": env.get("SKYRADAR_BASIC_AUTH_ENABLED", "true"),
+            "SKYRADAR_BASIC_AUTH_USERNAME": env.get("SKYRADAR_BASIC_AUTH_USERNAME", ""),
+            "SKYRADAR_BASIC_AUTH_PASSWORD": "<redacted>"
+            if env.get("SKYRADAR_BASIC_AUTH_PASSWORD")
+            else "",
         },
         "services": service_names,
         "mapping": mapping,

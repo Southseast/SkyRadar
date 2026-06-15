@@ -15,7 +15,6 @@ from workers.huey_app import huey
 from workers.search_tasks import search
 
 
-minute = int(os.environ.get("SKYRADAR_WORKER_MINUTE", "10"))
 _schedule_initialized = False
 
 
@@ -37,7 +36,7 @@ def create_github_client():
     return worker_service.create_github_client()
 
 
-@huey.periodic_task(crontab(minute="*/{}".format(minute)))
+@huey.periodic_task(crontab(minute="*"))
 def schedule_github_search():
     initialize_schedule_once()
     worker_service.schedule_github_search(
@@ -52,7 +51,6 @@ def schedule_github_search():
 __all__ = [
     "create_github_client",
     "initialize_schedule_once",
-    "minute",
     "schedule_github_search",
     "update_github_rate_remaining",
 ]

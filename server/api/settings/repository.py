@@ -17,10 +17,13 @@ def get_task_setting(projection=None):
     return setting_col.find_one({"key": "task"}, projection)
 
 
-def upsert_task_setting(page, minute):
+def upsert_task_setting(page, minute, next_due_at=None):
+    values = {"key": "task", "page": page, "minute": minute}
+    if next_due_at is not None:
+        values["next_due_at"] = next_due_at
     return setting_col.update_many(
         {"key": "task"},
-        {"$set": {"key": "task", "page": page, "minute": minute}},
+        {"$set": values},
         upsert=True,
     )
 

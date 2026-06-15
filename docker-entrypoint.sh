@@ -17,10 +17,12 @@ configure_nginx_upstream() {
     local upstream="${SKYRADAR_NGINX_UPSTREAM:-127.0.0.1:8888}"
     local auth_line_1=""
     local auth_line_2=""
+    local auth_enabled="${SKYRADAR_BASIC_AUTH_ENABLED:-true}"
+    auth_enabled="${auth_enabled,,}"
 
-    if [[ -n "${SKYRADAR_BASIC_AUTH_USERNAME:-}" || -n "${SKYRADAR_BASIC_AUTH_PASSWORD:-}" ]]; then
+    if [[ "${auth_enabled}" != "0" && "${auth_enabled}" != "false" && "${auth_enabled}" != "no" && "${auth_enabled}" != "off" ]]; then
         if [[ -z "${SKYRADAR_BASIC_AUTH_USERNAME:-}" || -z "${SKYRADAR_BASIC_AUTH_PASSWORD:-}" ]]; then
-            echo "SKYRADAR_BASIC_AUTH_USERNAME and SKYRADAR_BASIC_AUTH_PASSWORD must be set together" >&2
+            echo "nginx Basic Auth is enabled by default; set SKYRADAR_BASIC_AUTH_USERNAME and SKYRADAR_BASIC_AUTH_PASSWORD together, or set SKYRADAR_BASIC_AUTH_ENABLED=false for trusted local development" >&2
             exit 64
         fi
 

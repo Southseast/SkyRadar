@@ -93,6 +93,14 @@ Schemathesis smoke 只保留 `GET` operation，避免修改数据。写接口仍
 
 Worker smoke 覆盖 Huey app 初始化、任务注册、periodic task、mock 外部依赖下的最小任务流程，以及真实 Redis broker 下的后台 consumer 消费。默认测试不得访问真实 GitHub、SMTP 或生产 webhook。
 
+任务调度 minute 修复必须覆盖：
+
+- Huey periodic task 采用固定 tick，测试不依赖动态改 Huey crontab 或向 worker 发送 SIGHUP。
+- MongoDB task setting 的 `minute` 和 `next_due_at` 控制实际调度周期；`PUT /api/v1/task-schedules/current` 更新 `minute` 后，下一次固定 tick 读取新 setting 并尽快按新周期生效。
+- 到期任务 claim 使用 MongoDB 原子条件更新；并发 worker 或连续 tick 下，同一到期周期最多 enqueue 一次。
+- enqueue 成功后按当前 `minute` 推进 `next_due_at`；未到期、禁用或 claim 失败的任务不得 enqueue。
+- 使用可控时钟或 fixture 验证 `next_due_at` 推进，避免测试依赖真实等待分钟级时间。
+
 ### Compose Smoke
 
 Compose smoke 从测试策略上必须覆盖 fresh volume 启动、service health、数据服务、HTTP 入口、静态资源、nginx、worker 消费和日志/secret 风险。具体脚本覆盖项和命令以 `IMPLEMENTATION_GUIDE.md` 为准。
@@ -135,6 +143,7 @@ server/
 - 替换 PyMongo API、MongoDB 连接认证或 health check。
 - 升级 Python、FastAPI、Uvicorn、Gunicorn、PyMongo、Redis client、Huey、PyGithub、Requests。
 - 调整 Huey task、定时任务、GitHub 搜索、邮件或 webhook 通知。
+- 修改 task schedule 的 `minute`、`next_due_at`、PUT 生效语义、claim 或 enqueue 行为。
 - 引入新的 FastAPI route、schema 层或 domain service/repository。
 - 新增或修改 `docs/api/openapi.yaml`。
 

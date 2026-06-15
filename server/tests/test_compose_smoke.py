@@ -49,6 +49,7 @@ def test_startup_commands_support_fresh_volume_rebuild():
     assert shutdown == "docker compose -f compose.yml -p skyradar-smoke down -v --remove-orphans"
 
 def test_smoke_request_adds_basic_auth_from_environment(monkeypatch):
+    monkeypatch.setenv("SKYRADAR_BASIC_AUTH_ENABLED", "true")
     monkeypatch.setenv("SKYRADAR_BASIC_AUTH_USERNAME", "skyradar")
     monkeypatch.setenv("SKYRADAR_BASIC_AUTH_PASSWORD", "test-password-not-secret")
 
@@ -60,7 +61,32 @@ def test_smoke_request_adds_basic_auth_from_environment(monkeypatch):
     assert request.headers["Accept"] == "application/json"
     assert request.headers["Authorization"].startswith("Basic ")
 
+def test_smoke_request_adds_default_basic_auth_when_enabled_by_default(monkeypatch):
+    monkeypatch.delenv("SKYRADAR_BASIC_AUTH_ENABLED", raising=False)
+    monkeypatch.delenv("SKYRADAR_BASIC_AUTH_USERNAME", raising=False)
+    monkeypatch.delenv("SKYRADAR_BASIC_AUTH_PASSWORD", raising=False)
+
+    request = backend_compose_smoke.smoke_request(
+        "http://127.0.0.1:18081/api/v1/health",
+        {"Accept": "application/json"},
+    )
+
+    assert request.headers["Authorization"].startswith("Basic ")
+
+def test_smoke_request_omits_basic_auth_when_explicitly_disabled(monkeypatch):
+    monkeypatch.setenv("SKYRADAR_BASIC_AUTH_ENABLED", "false")
+    monkeypatch.delenv("SKYRADAR_BASIC_AUTH_USERNAME", raising=False)
+    monkeypatch.delenv("SKYRADAR_BASIC_AUTH_PASSWORD", raising=False)
+
+    request = backend_compose_smoke.smoke_request(
+        "http://127.0.0.1:18081/api/v1/health",
+        {"Accept": "application/json"},
+    )
+
+    assert "Authorization" not in request.headers
+
 def test_basic_auth_environment_requires_username_and_password(monkeypatch):
+    monkeypatch.setenv("SKYRADAR_BASIC_AUTH_ENABLED", "true")
     monkeypatch.setenv("SKYRADAR_BASIC_AUTH_USERNAME", "skyradar")
     monkeypatch.delenv("SKYRADAR_BASIC_AUTH_PASSWORD", raising=False)
 
@@ -92,6 +118,9 @@ def test_backend_compose_smoke_dry_run_reports_current_service_mapping():
     assert payload["ok"] is True
     assert payload["dry_run"] is True
     assert payload["environment"]["SKYRADAR_HTTP_PORT"] == "18081"
+    assert payload["environment"]["SKYRADAR_BASIC_AUTH_ENABLED"] == "true"
+    assert payload["environment"]["SKYRADAR_BASIC_AUTH_USERNAME"] == "skyradar-smoke"
+    assert payload["environment"]["SKYRADAR_BASIC_AUTH_PASSWORD"] == "<redacted>"
     assert payload["commands"]["startup"] == ["docker compose -f compose.yml up -d"]
     assert payload["mapping"]["mongo"] == "mongo"
     assert payload["mapping"]["web"] in {"web", "skyradar"}

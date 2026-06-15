@@ -112,6 +112,8 @@ docs/
 推荐用 Docker Compose 启动完整拓扑。
 
 ```bash
+SKYRADAR_BASIC_AUTH_USERNAME=admin \
+SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
 docker compose up --build -d
 ```
 
@@ -119,6 +121,7 @@ docker compose up --build -d
 
 - 前端：`http://127.0.0.1/`
 - 健康检查：`http://127.0.0.1/api/v1/health`
+- 默认启用 nginx Basic Auth；访问时使用启动命令中的用户名和密码。
 
 停止：
 
@@ -159,15 +162,22 @@ SKYRADAR_API_DOCS_ENABLED=1 docker compose up --build -d
 | `SKYRADAR_MONGO_IMAGE` | `mongo:8.2.7` | Compose MongoDB 镜像 |
 | `SKYRADAR_API_DOCS_ENABLED` | `false` | 是否启用 `/api/v1/docs` |
 | `SKYRADAR_OPENAPI_PATH` | `docs/api/openapi.yaml` | OpenAPI 契约文件路径 |
-| `SKYRADAR_BASIC_AUTH_USERNAME` | 空 | nginx Basic Auth 用户名 |
-| `SKYRADAR_BASIC_AUTH_PASSWORD` | 空 | nginx Basic Auth 密码 |
+| `SKYRADAR_BASIC_AUTH_ENABLED` | `true` | 是否启用 nginx Basic Auth |
+| `SKYRADAR_BASIC_AUTH_USERNAME` | 空 | nginx Basic Auth 用户名，默认启用时必须设置 |
+| `SKYRADAR_BASIC_AUTH_PASSWORD` | 空 | nginx Basic Auth 密码，默认启用时必须设置 |
 
-Basic Auth 必须同时设置用户名和密码：
+Basic Auth 默认开启，必须同时设置用户名和密码：
 
 ```bash
 SKYRADAR_BASIC_AUTH_USERNAME=admin \
 SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
 docker compose up --build -d
+```
+
+仅在可信本地开发环境可显式关闭：
+
+```bash
+SKYRADAR_BASIC_AUTH_ENABLED=false docker compose up --build -d
 ```
 
 GitHub PAT 建议使用 Fine-grained PAT：
@@ -309,7 +319,7 @@ docker run -d \
 
 ## 安全注意
 
-- `/api/v1/*` 当前没有应用级登录态。部署到不可信网络前，应至少启用 nginx Basic Auth，并配合 HTTPS、VPN、内网或可信反向代理。
+- `/api/v1/*` 当前没有应用级登录态。nginx Basic Auth 默认开启；部署到不可信网络前还必须配合 HTTPS、VPN、内网或可信反向代理。
 - GitHub PAT、SMTP 密码和 webhook token 都属于敏感配置，避免在日志、截图、Issue 或聊天记录中暴露。
 - `POST /api/v1/github-accounts` 不应向页面回显原始 token；前端 adapter 会在边界删除敏感字段，后端也应保持敏感字段不回显。
 - MongoDB、Redis 和 Docker 基础镜像升级后，需要在目标部署环境复验 `/api/v1/health`、worker 消费和通知链路。

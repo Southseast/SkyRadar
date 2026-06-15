@@ -5,7 +5,6 @@
 # @Description : Tests settings persistence contract behavior.
 
 import hashlib
-import signal
 from urllib.parse import parse_qs, urlparse
 
 
@@ -76,12 +75,13 @@ def test_task_settings_get_returns_404_when_missing(client, monkeypatch):
     }
 
 
-def test_task_settings_put_upserts_and_sends_sighup(client, monkeypatch):
+def test_task_settings_put_upserts_new_minute_and_keeps_response_compatible(client, monkeypatch):
     from api.settings import repository as setting
     from api.settings import service as settings_service
 
     captured = {}
     stored_document = {"key": "task", "pid": 12345}
+    fixed_now = 1_700_000_000
 
     class FakeSettingCollection:
         def update_many(self, filters, update, upsert=False):
@@ -96,11 +96,8 @@ def test_task_settings_put_upserts_and_sends_sighup(client, monkeypatch):
                 return stored_document
             return _project(stored_document, projection)
 
-    def fake_kill(pid, sig):
-        captured["kill"] = (pid, sig)
-
     monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
-    monkeypatch.setattr(settings_service.os, "kill", fake_kill)
+    monkeypatch.setattr(settings_service.time, "time", lambda: fixed_now)
 
     response = client.put("/api/v1/task-schedules/current", json={"page": 20, "minute": 5})
 
@@ -109,11 +106,12 @@ def test_task_settings_put_upserts_and_sends_sighup(client, monkeypatch):
         "data": {"key": "task", "pid": 12345, "page": 20, "minute": 5}
     }
     assert captured["update_filters"] == {"key": "task"}
-    assert captured["update"] == {"$set": {"key": "task", "page": 20, "minute": 5}}
+    assert captured["update"]["$set"]["key"] == "task"
+    assert captured["update"]["$set"]["page"] == 20
+    assert captured["update"]["$set"]["minute"] == 5
+    assert captured["update"]["$set"]["next_due_at"] == fixed_now
     assert captured["upsert"] is True
-    assert captured["kill"] == (12345, signal.SIGHUP)
     assert captured["find_one_calls"] == [
-        ({"key": "task"}, None),
         ({"key": "task"}, {"_id": 0}),
     ]
 

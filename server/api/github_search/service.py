@@ -163,7 +163,6 @@ def update_github_rate_remaining():
 
 
 def schedule_github_search(schedule_search, pending_delay):
-    worker_repository.update_task_pid(os.getpid())
     query_count = worker_repository.enabled_query_count()
     logger.info("需要处理的关键词总数: {}".format(query_count))
     if query_count:
@@ -175,11 +174,15 @@ def schedule_github_search(schedule_search, pending_delay):
         logger.error("请配置github账号")
         return
 
-    page = worker_repository.task_page()
+    task_setting = worker_repository.claim_due_task_schedule(os.getpid(), int(time.time()))
+    if not task_setting:
+        return
+
+    page = task_setting.get("page")
     if page is None:
         logger.error("请在页面上配置任务参数")
         return
-    worker_repository.update_task_pid(os.getpid())
+    page = int(page)
     for page_number in range(0, page):
         for query in worker_repository.iter_enabled_queries():
             github_account = worker_repository.choose_github_account()

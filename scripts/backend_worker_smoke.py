@@ -88,6 +88,15 @@ class FakeCollection:
             document[key] = value
         return FakeUpdateResult(matched_count=1, modified_count=1, upserted_id=upserted_id)
 
+    def find_one_and_update(self, filters, update, return_document=None):
+        self.updates.append({"filters": filters, "update": update, "return_document": return_document})
+        for document in self.documents:
+            if _matches(document, filters or {}):
+                for key, value in update.get("$set", {}).items():
+                    document[key] = value
+                return dict(document)
+        return None
+
     def find(self, filters=None, projection=None):
         return [
             _project(document, projection)
@@ -117,6 +126,10 @@ class FakeRedis:
 
 def _matches(document, filters):
     for key, expected in filters.items():
+        if key == "$or":
+            if not any(_matches(document, option) for option in expected):
+                return False
+            continue
         actual = document.get(key)
         if isinstance(expected, dict):
             if "$exists" in expected and (key in document) is not bool(expected["$exists"]):

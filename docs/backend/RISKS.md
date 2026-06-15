@@ -21,7 +21,7 @@
 
 - Swagger/OpenAPI 文档入口生产默认关闭。
 - 生产必须通过网络边界或反向代理认证限制访问。
-- 当前按 ADR-0008 使用 nginx Basic Auth 保护页面和 `/api` 入口。
+- 当前按 ADR-0008 默认启用 nginx Basic Auth 保护页面和 `/api` 入口；仅可信本地开发可显式关闭。
 - 公网或不可信网络必须叠加 HTTPS、VPN、防火墙或上游认证网关。
 - 如未来需要多用户、审计或细粒度权限，再新增应用层用户体系 ADR。
 
@@ -186,3 +186,18 @@
 - `PROGRESS.md` 明确记录未运行项。
 - 未配置或未脚本化命令只能写“目标命令/待实现”。
 - 完成实现切片后再更新验证状态。
+
+## R013 - 任务调度周期与 Huey crontab 耦合
+
+状态：已知风险
+
+描述：如果把用户配置的 `minute` 直接绑定到 Huey periodic crontab，`PUT /api/v1/task-schedules/current` 后可能需要 SIGHUP、worker 重启或动态重载 crontab 才能生效；多 worker 或连续 tick 下也可能重复 enqueue 同一到期周期。
+
+影响：任务周期更新不及时、调度与 MongoDB setting 不一致、重复 GitHub 搜索、重复通知、`next_due_at` 停滞或漂移。
+
+缓解：
+
+- Huey periodic task 只保留固定 tick；MongoDB task setting 的 `minute` 和 `next_due_at` 是实际调度事实来源。
+- `PUT /api/v1/task-schedules/current` 后由下一次固定 tick 读取最新 MongoDB setting，不依赖 SIGHUP 动态改 crontab。
+- 到期任务通过 MongoDB 原子 claim 控制并发，只有 claim 成功的 worker 可以 enqueue。
+- enqueue 成功后按当前 `minute` 推进 `next_due_at`，并用测试覆盖防重复 enqueue 和推进逻辑。

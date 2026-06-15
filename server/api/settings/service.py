@@ -5,8 +5,6 @@
 # @Description : Implements settings service logic.
 
 import hashlib
-import os
-import signal
 import time
 from urllib.parse import urlparse
 
@@ -18,6 +16,7 @@ from integrations import github as github_integration
 
 
 WEBHOOK_PROVIDERS = {"dingtalk", "feishu"}
+TASK_SETTING_INTERNAL_FIELDS = {"next_due_at", "last_scheduled_at"}
 
 
 class SettingsServiceError(Exception):
@@ -65,18 +64,13 @@ def get_task_settings():
     result = setting_repository.get_task_setting({"_id": 0})
     if not result:
         raise SettingsServiceError(404, "task settings are not configured")
+    for field in TASK_SETTING_INTERNAL_FIELDS:
+        result.pop(field, None)
     return result
 
 
 def put_task_settings(page, minute):
-    setting_repository.upsert_task_setting(page, minute)
-    task_setting = setting_repository.get_task_setting()
-    try:
-        pid = task_setting.get("pid") if task_setting else None
-        if pid:
-            os.kill(pid, signal.SIGHUP)
-    except ProcessLookupError:
-        pass
+    setting_repository.upsert_task_setting(page, minute, int(time.time()))
     return get_task_settings()
 
 

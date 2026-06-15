@@ -6,7 +6,7 @@
 
 import random
 
-from pymongo import ASCENDING, DESCENDING, errors
+from pymongo import ASCENDING, DESCENDING, ReturnDocument, errors
 
 from core.database import blacklist_col, github_col, notice_col, query_col, result_col, setting_col
 
@@ -20,6 +20,10 @@ def task_minute(default=10):
     return default
 
 
+def _interval_seconds(minute):
+    return max(1, int(minute)) * 60
+
+
 def ensure_task_setting(pid, now, default_minute=10, default_page=3):
     if setting_col.count_documents({"key": "task", "minute": {"$exists": True}, "page": {"$exists": True}}):
         setting_col.update_one({"key": "task"}, {"$set": {"key": "task", "pid": pid, "last": now}}, upsert=True)
@@ -28,6 +32,53 @@ def ensure_task_setting(pid, now, default_minute=10, default_page=3):
         {"key": "task"},
         {"$set": {"key": "task", "pid": pid, "minute": default_minute, "page": default_page, "last": now}},
         upsert=True,
+    )
+
+
+def claim_due_task_schedule(pid, now, default_minute=10):
+    task = setting_col.find_one({"key": "task"}, {"minute": 1, "page": 1, "next_due_at": 1, "last_scheduled_at": 1})
+    if not task or task.get("minute") is None or task.get("page") is None:
+        return None
+
+    minute = int(task.get("minute", default_minute))
+    interval_seconds = _interval_seconds(minute)
+    current_next_due_at = task.get("next_due_at")
+    last_scheduled_at = task.get("last_scheduled_at")
+    due_at = current_next_due_at
+    if due_at is None and last_scheduled_at is not None:
+        due_at = int(last_scheduled_at) + interval_seconds
+    if due_at is not None and int(due_at) > now:
+        return None
+
+    filters = {
+        "key": "task",
+        "minute": minute,
+        "page": {"$exists": True},
+    }
+    if current_next_due_at is None:
+        filters["next_due_at"] = {"$exists": False}
+        if last_scheduled_at is None:
+            filters["$or"] = [
+                {"last_scheduled_at": {"$exists": False}},
+                {"last_scheduled_at": None},
+            ]
+        else:
+            filters["last_scheduled_at"] = last_scheduled_at
+    else:
+        filters["next_due_at"] = current_next_due_at
+
+    return setting_col.find_one_and_update(
+        filters,
+        {
+            "$set": {
+                "key": "task",
+                "pid": pid,
+                "last": now,
+                "last_scheduled_at": now,
+                "next_due_at": now + interval_seconds,
+            }
+        },
+        return_document=ReturnDocument.AFTER,
     )
 
 

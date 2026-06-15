@@ -32,6 +32,172 @@ def _fake_repo(sha, *, remaining="10", project="org/repo", filename="secret.py")
     )
 
 
+class _ScheduleRepository:
+    def __init__(self, *, now, setting=None, claim_success=True):
+        self.now = now
+        self.setting = {
+            "key": "task",
+            "page": 1,
+            "minute": 5,
+            "next_due_at": now,
+            **(setting or {}),
+        }
+        self.claim_success = claim_success
+        self.queries = [{"tag": "github-token", "keyword": "ghp_", "enabled": True}]
+        self.account = {"username": "octocat", "password": "secret", "rate_remaining": 99}
+        self.claims = []
+        self.advanced_next_due_at = []
+        self.touched_pids = []
+        self.events = []
+
+    def get_task_setting(self, *args, **kwargs):
+        return dict(self.setting)
+
+    get_task_schedule = get_task_setting
+    find_task_setting = get_task_setting
+    task_setting = get_task_setting
+
+    def task_minute(self, default=10):
+        return int(self.setting.get("minute", default))
+
+    def task_page(self):
+        return int(self.setting["page"])
+
+    def task_next_due_at(self, default=None):
+        return self.setting.get("next_due_at", default)
+
+    def update_task_pid(self, pid):
+        self.touched_pids.append(pid)
+
+    def enabled_query_count(self):
+        self.events.append("query_count")
+        return len(self.queries)
+
+    def has_github_capacity(self):
+        return True
+
+    def iter_enabled_queries(self):
+        return list(self.queries)
+
+    def choose_github_account(self):
+        return dict(self.account)
+
+    def is_task_schedule_due(self, *args, **kwargs):
+        return int(self.setting.get("next_due_at", 0)) <= int(self.now)
+
+    is_task_due = is_task_schedule_due
+
+    def _claim_due_task(self, *args, **kwargs):
+        self.events.append("claim")
+        self.claims.append({"args": args, "kwargs": kwargs})
+        if int(self.setting.get("next_due_at", 0)) > int(self.now):
+            return None
+        if not self.claim_success:
+            return None
+
+        minute = int(kwargs.get("minute", self.setting["minute"]))
+        next_due_at = kwargs.get("next_due_at")
+        next_due_at = kwargs.get("new_next_due_at", next_due_at)
+        next_due_at = kwargs.get("due_at", next_due_at)
+        for arg in args:
+            if isinstance(arg, dict):
+                minute = int(arg.get("minute", minute))
+                next_due_at = arg.get("next_due_at", next_due_at)
+                next_due_at = arg.get("new_next_due_at", next_due_at)
+                next_due_at = arg.get("due_at", next_due_at)
+            elif isinstance(arg, (int, float)) and int(arg) >= int(self.now) + minute * 60:
+                next_due_at = int(arg)
+
+        next_due_at = int(next_due_at if next_due_at is not None else int(self.now) + minute * 60)
+        self.setting["next_due_at"] = next_due_at
+        self.advanced_next_due_at.append(next_due_at)
+        return dict(self.setting)
+
+    claim_due_task = _claim_due_task
+    claim_task_schedule = _claim_due_task
+    claim_due_task_schedule = _claim_due_task
+    claim_search_schedule = _claim_due_task
+    claim_task_setting = _claim_due_task
+
+
+def test_schedule_github_search_skips_when_next_due_at_is_in_future(monkeypatch):
+    now = 1_700_000_000
+    repo = _ScheduleRepository(now=now, setting={"minute": 5, "next_due_at": now + 120})
+    scheduled = []
+
+    monkeypatch.setattr(worker_service, "worker_repository", repo)
+    monkeypatch.setattr(worker_service.time, "time", lambda: repo.now)
+    monkeypatch.setattr(worker_service.os, "getpid", lambda: 4321)
+
+    worker_service.schedule_github_search(
+        lambda query, page, github_account, delay: scheduled.append((query, page, github_account, delay)),
+        lambda: 0,
+    )
+
+    assert scheduled == []
+    assert repo.advanced_next_due_at == []
+
+
+def test_schedule_github_search_claims_due_task_before_enqueue_and_advances_next_due_at(monkeypatch):
+    now = 1_700_000_000
+    repo = _ScheduleRepository(now=now, setting={"minute": 5, "next_due_at": now})
+    scheduled = []
+
+    monkeypatch.setattr(worker_service, "worker_repository", repo)
+    monkeypatch.setattr(worker_service.time, "time", lambda: repo.now)
+    monkeypatch.setattr(worker_service.os, "getpid", lambda: 4321)
+
+    worker_service.schedule_github_search(
+        lambda query, page, github_account, delay: repo.events.append("enqueue")
+        or scheduled.append({"query": query, "page": page, "account": github_account, "delay": delay}),
+        lambda: 0,
+    )
+
+    assert scheduled == [{"query": repo.queries[0], "page": 0, "account": repo.account, "delay": 0}]
+    assert len(repo.claims) == 1
+    assert repo.advanced_next_due_at == [now + 5 * 60]
+    assert repo.events.index("claim") < repo.events.index("enqueue")
+
+
+def test_schedule_github_search_does_not_enqueue_when_due_claim_fails(monkeypatch):
+    now = 1_700_000_000
+    repo = _ScheduleRepository(now=now, setting={"minute": 5, "next_due_at": now}, claim_success=False)
+    scheduled = []
+
+    monkeypatch.setattr(worker_service, "worker_repository", repo)
+    monkeypatch.setattr(worker_service.time, "time", lambda: repo.now)
+    monkeypatch.setattr(worker_service.os, "getpid", lambda: 4321)
+
+    worker_service.schedule_github_search(
+        lambda query, page, github_account, delay: scheduled.append((query, page, github_account, delay)),
+        lambda: 0,
+    )
+
+    assert scheduled == []
+    assert len(repo.claims) == 1
+    assert repo.advanced_next_due_at == []
+
+
+def test_schedule_github_search_second_tick_does_not_duplicate_after_claim(monkeypatch):
+    now = 1_700_000_000
+    repo = _ScheduleRepository(now=now, setting={"minute": 5, "next_due_at": now})
+    scheduled = []
+
+    monkeypatch.setattr(worker_service, "worker_repository", repo)
+    monkeypatch.setattr(worker_service.time, "time", lambda: repo.now)
+    monkeypatch.setattr(worker_service.os, "getpid", lambda: 4321)
+
+    def enqueue(query, page, github_account, delay):
+        scheduled.append({"query": query, "page": page, "account": github_account, "delay": delay})
+
+    worker_service.schedule_github_search(enqueue, lambda: 0)
+    repo.now = now + 1
+    worker_service.schedule_github_search(enqueue, lambda: 0)
+
+    assert len(scheduled) == 1
+    assert repo.advanced_next_due_at == [now + 5 * 60]
+
+
 def test_schedule_github_search_passes_account_document_to_huey_boundary(monkeypatch):
     queries = [
         {"tag": "github-token", "keyword": "ghp_", "enabled": True},
@@ -39,12 +205,19 @@ def test_schedule_github_search_passes_account_document_to_huey_boundary(monkeyp
     ]
     account = {"username": "octocat", "password": "secret", "rate_remaining": 99}
     scheduled = []
-    touched = []
+    claimed = []
 
     monkeypatch.setattr(
         worker_service.worker_repository,
         "update_task_pid",
-        lambda pid: touched.append(pid),
+        lambda pid: None,
+        raising=False,
+    )
+    monkeypatch.setattr(
+        worker_service.worker_repository,
+        "claim_due_task_schedule",
+        lambda pid, now: claimed.append((pid, now)) or {"key": "task", "page": 2, "minute": 5},
+        raising=False,
     )
     monkeypatch.setattr(worker_service.worker_repository, "enabled_query_count", lambda: len(queries))
     monkeypatch.setattr(worker_service.worker_repository, "has_github_capacity", lambda: True)
@@ -63,7 +236,8 @@ def test_schedule_github_search_passes_account_document_to_huey_boundary(monkeyp
     assert len(scheduled) == 4
     assert scheduled[0] == {"query": queries[0], "page": 0, "account": account, "delay": 7}
     assert scheduled[2] == {"query": queries[0], "page": 1, "account": account, "delay": 7}
-    assert touched == [1234, 1234]
+    assert len(claimed) == 1
+    assert claimed[0][0] == 1234
 
 
 def test_search_inserts_leakage_and_returns_notification_lists(monkeypatch):

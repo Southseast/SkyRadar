@@ -73,12 +73,14 @@
 
 适用于 nginx Basic Auth 相关切片；其他切片可标记为不适用。长期决策见 ADR-0008。
 
-- [ ] 同时设置 `SKYRADAR_BASIC_AUTH_USERNAME` 和 `SKYRADAR_BASIC_AUTH_PASSWORD` 可启用 nginx Basic Auth。
+- [ ] 未设置 `SKYRADAR_BASIC_AUTH_ENABLED` 时，nginx Basic Auth 默认启用。
+- [ ] 默认启用时，同时设置 `SKYRADAR_BASIC_AUTH_USERNAME` 和 `SKYRADAR_BASIC_AUTH_PASSWORD` 可启动并访问。
 - [ ] 只配置用户名或只配置密码时容器启动失败。
-- [ ] 未配置 Basic Auth 变量时，本地开发和默认 smoke 行为保持兼容。
+- [ ] 未配置用户名和密码且未显式关闭 Basic Auth 时，nginx/all-in-one 角色启动失败。
+- [ ] 仅设置 `SKYRADAR_BASIC_AUTH_ENABLED=false` 时允许无认证本地开发或 smoke。
 - [ ] 启用 Basic Auth 后，无认证访问页面、静态资源和 `/api/v1/health` 返回 HTTP `401`。
 - [ ] 启用 Basic Auth 后，正确用户名和密码可访问页面和 `/api/v1/health`。
-- [ ] compose nginx 和 all-in-one healthcheck 在启用 Basic Auth 时携带同一组环境变量认证信息。
+- [ ] compose nginx 和 all-in-one healthcheck 默认携带同一组环境变量认证信息；显式关闭时才无认证。
 - [ ] htpasswd 文件在运行时生成，不写入 Git、镜像构建层、日志或测试快照。
 - [ ] Basic Auth 密码不出现在 `docker compose logs`、OpenAPI 示例、测试 fixture 或 CI artifact。
 - [ ] 文档明确 Basic Auth 需要 HTTPS、VPN、内网或可信反向代理配合。
@@ -110,6 +112,10 @@
 - [ ] Huey worker import 阶段不发起 GitHub、SMTP、webhook 等外部请求。
 - [ ] 修改任务调度、队列、Redis 配置或任务参数时，已补 worker smoke 或记录验证缺口。
 - [ ] worker 只负责任务注册、调度入口和参数反序列化；业务逻辑逐步下沉到 service。
+- [ ] Huey periodic task 采用固定 tick；实际调度周期由 MongoDB task setting 的 `minute` 和 `next_due_at` 控制。
+- [ ] `PUT /api/v1/task-schedules/current` 后新 `minute` 不依赖 SIGHUP、worker 重启或动态改 Huey crontab，并在下一次固定 tick 尽快生效。
+- [ ] 到期任务 claim 使用 MongoDB 原子条件更新，并已覆盖并发或连续 tick 下防重复 enqueue。
+- [ ] enqueue 成功后按当前 `minute` 推进 `next_due_at`；未到期、禁用或 claim 失败场景不会 enqueue。
 - [ ] GitHub 搜索、rate limit、结果入库、资产提取和通知发送可被 mock 测试。
 - [ ] worker 日志不打印 token、SMTP password、完整 webhook URL、完整泄露代码或敏感资产。
 - [ ] Python、Huey 或 Redis 升级后，已验证 worker 可初始化并执行最小任务。

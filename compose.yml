@@ -44,13 +44,14 @@ services:
     environment:
       SKYRADAR_ROLE: nginx
       SKYRADAR_NGINX_UPSTREAM: skyradar:8888
+      SKYRADAR_BASIC_AUTH_ENABLED: ${SKYRADAR_BASIC_AUTH_ENABLED:-true}
       SKYRADAR_BASIC_AUTH_USERNAME: ${SKYRADAR_BASIC_AUTH_USERNAME:-}
       SKYRADAR_BASIC_AUTH_PASSWORD: ${SKYRADAR_BASIC_AUTH_PASSWORD:-}
     depends_on:
       skyradar:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$$SKYRADAR_BASIC_AUTH_USERNAME\" ] && [ -n \"$$SKYRADAR_BASIC_AUTH_PASSWORD\" ]; then curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/v1/health >/dev/null; else curl -fsS http://127.0.0.1/api/v1/health >/dev/null; fi || exit 1"]
+      test: ["CMD-SHELL", "case \"$${SKYRADAR_BASIC_AUTH_ENABLED:-true}\" in 0|false|False|FALSE|no|No|NO|off|Off|OFF) curl -fsS http://127.0.0.1/api/v1/health >/dev/null ;; *) curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/v1/health >/dev/null ;; esac || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -103,13 +104,14 @@ services:
     environment:
       MONGODB_URI: mongodb://mongo:27017
       SKYRADAR_ROLE: all
+      SKYRADAR_BASIC_AUTH_ENABLED: ${SKYRADAR_BASIC_AUTH_ENABLED:-true}
       SKYRADAR_BASIC_AUTH_USERNAME: ${SKYRADAR_BASIC_AUTH_USERNAME:-}
       SKYRADAR_BASIC_AUTH_PASSWORD: ${SKYRADAR_BASIC_AUTH_PASSWORD:-}
     depends_on:
       mongo:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$$SKYRADAR_BASIC_AUTH_USERNAME\" ] && [ -n \"$$SKYRADAR_BASIC_AUTH_PASSWORD\" ]; then curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/v1/health >/dev/null; else curl -fsS http://127.0.0.1/api/v1/health >/dev/null; fi || exit 1"]
+      test: ["CMD-SHELL", "case \"$${SKYRADAR_BASIC_AUTH_ENABLED:-true}\" in 0|false|False|FALSE|no|No|NO|off|Off|OFF) curl -fsS http://127.0.0.1/api/v1/health >/dev/null ;; *) curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/v1/health >/dev/null ;; esac || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
