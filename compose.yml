@@ -1,7 +1,12 @@
 name: skyradar
 
-x-skyradar-image: &skyradar-image
+x-skyradar-runtime-image: &skyradar-runtime-image
   image: ${SKYRADAR_IMAGE:-skyradar:latest}
+  pull_policy: never
+
+x-skyradar-build-image: &skyradar-build-image
+  <<: *skyradar-runtime-image
+  pull_policy: build
   build:
     context: .
     dockerfile: Dockerfile
@@ -18,7 +23,7 @@ x-skyradar-environment: &skyradar-environment
 
 services:
   skyradar:
-    <<: *skyradar-image
+    <<: *skyradar-build-image
     expose:
       - "8888"
     environment:
@@ -38,7 +43,7 @@ services:
     restart: unless-stopped
 
   nginx:
-    <<: *skyradar-image
+    <<: *skyradar-runtime-image
     ports:
       - "${SKYRADAR_HTTP_PORT:-80}:80"
     environment:
@@ -59,7 +64,7 @@ services:
     restart: unless-stopped
 
   worker:
-    <<: *skyradar-image
+    <<: *skyradar-runtime-image
     environment:
       <<: *skyradar-environment
       SKYRADAR_ROLE: worker
@@ -77,7 +82,7 @@ services:
     restart: unless-stopped
 
   redis:
-    <<: *skyradar-image
+    <<: *skyradar-runtime-image
     command: ["redis-server", "--save", "", "--appendonly", "no", "--protected-mode", "no"]
     healthcheck:
       test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
@@ -88,15 +93,7 @@ services:
     restart: unless-stopped
 
   skyradar-all-in-one:
-    image: ${SKYRADAR_IMAGE:-skyradar:latest}
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}
-        HTTP_PROXY: ${HTTP_PROXY:-}
-        HTTPS_PROXY: ${HTTPS_PROXY:-}
-        NO_PROXY: ${NO_PROXY:-}
+    <<: *skyradar-build-image
     profiles:
       - all-in-one
     ports:

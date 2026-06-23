@@ -110,11 +110,12 @@ docs/
 ## 快速开始
 
 推荐用 Docker Compose 启动完整拓扑。
+Compose 会从当前源码和 `Dockerfile` 构建 SkyRadar 应用镜像；`SKYRADAR_IMAGE` 只作为本次构建产物 tag，不从远端 registry 拉取 SkyRadar 预构建镜像。
 
 ```bash
 SKYRADAR_BASIC_AUTH_USERNAME=admin \
 SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
-docker compose up --build -d
+docker compose up -d
 ```
 
 默认访问：
@@ -135,7 +136,7 @@ docker compose down
 SKYRADAR_BASIC_AUTH_USERNAME=admin \
 SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
 SKYRADAR_HTTP_PORT=8080 \
-docker compose up --build -d
+docker compose up -d
 ```
 
 启用 Swagger UI：
@@ -144,7 +145,7 @@ docker compose up --build -d
 SKYRADAR_BASIC_AUTH_USERNAME=admin \
 SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
 SKYRADAR_API_DOCS_ENABLED=1 \
-docker compose up --build -d
+docker compose up -d
 ```
 
 启用后访问：
@@ -164,7 +165,7 @@ docker compose up --build -d
 | `REDIS_HOST` | `redis` | Redis host |
 | `REDIS_PORT` | `6379` | Redis port |
 | `SKYRADAR_HTTP_PORT` | `80` | Compose nginx 对外端口 |
-| `SKYRADAR_IMAGE` | `skyradar:latest` | Compose 构建/运行镜像名 |
+| `SKYRADAR_IMAGE` | `skyradar:latest` | Compose 本地构建产物 tag；不会作为 SkyRadar 远端镜像拉取 |
 | `SKYRADAR_MONGO_IMAGE` | `mongo:8.2.7` | Compose MongoDB 镜像 |
 | `SKYRADAR_API_DOCS_ENABLED` | `false` | 是否启用 `/api/v1/docs` |
 | `SKYRADAR_OPENAPI_PATH` | `docs/api/openapi.yaml` | OpenAPI 契约文件路径 |
@@ -177,13 +178,13 @@ Basic Auth 默认开启，必须同时设置用户名和密码：
 ```bash
 SKYRADAR_BASIC_AUTH_USERNAME=admin \
 SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
-docker compose up --build -d
+docker compose up -d
 ```
 
 仅在可信本地开发环境可显式关闭：
 
 ```bash
-SKYRADAR_BASIC_AUTH_ENABLED=false docker compose up --build -d
+SKYRADAR_BASIC_AUTH_ENABLED=false docker compose up -d
 ```
 
 GitHub PAT 建议使用 Fine-grained PAT：
@@ -300,7 +301,7 @@ uv run --no-project --python 3.13 \
 ```bash
 SKYRADAR_BASIC_AUTH_USERNAME=admin \
 SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
-docker compose up --build -d
+docker compose up -d
 ```
 
 短期单容器兼容模式：
@@ -308,7 +309,7 @@ docker compose up --build -d
 ```bash
 SKYRADAR_BASIC_AUTH_USERNAME=admin \
 SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
-docker compose --profile all-in-one up --build -d skyradar-all-in-one mongo
+docker compose --profile all-in-one up -d skyradar-all-in-one mongo
 ```
 
 构建镜像：

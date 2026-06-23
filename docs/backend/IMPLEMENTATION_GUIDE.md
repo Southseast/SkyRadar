@@ -48,7 +48,7 @@ PYTHONPATH=server gunicorn -w10 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8888
 当前 `compose.yml` 提供 API、nginx、Worker、Redis、MongoDB 拆分拓扑，并保留单容器兼容 profile：
 
 ```bash
-docker compose up --build
+docker compose up -d
 ```
 
 当前 compose 服务拆分：
@@ -66,6 +66,7 @@ skyradar-all-in-one   # all-in-one profile，短期兼容/回滚路径
 
 - MongoDB 默认镜像为 `mongo:8.2.7`，可通过 `SKYRADAR_MONGO_IMAGE` 覆盖。
 - Redis service 不再拉取独立 Redis 镜像，复用项目镜像内 Debian Trixie `redis-server`，以无持久化模式运行；实际 Redis server 版本以镜像构建和 compose smoke 输出为准。
+- SkyRadar 应用镜像通过 `pull_policy: build` 在 `skyradar` 或 `skyradar-all-in-one` 服务上强制从当前源码和 `Dockerfile` 构建一次；nginx、worker、redis 角色通过 `pull_policy: never` 复用本次构建出的本地 tag，禁止从 registry 拉取 SkyRadar 预构建镜像。
 - Node 构建阶段使用 `public.ecr.aws/docker/library/node:24-trixie-slim`。
 - Python 运行阶段使用 `python:3.13-slim-trixie`，通过 `uv==0.11.19` 安装 requirements。
 - Docker 镜像运行阶段 `WORKDIR` 为 `/SkyRadar`，并设置 `PYTHONPATH=/SkyRadar/server`；supervisor 管理的 API 和 Worker 程序也从 `/SkyRadar` 启动。

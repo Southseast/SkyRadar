@@ -237,10 +237,10 @@ compose 一键启动：
 ```bash
 SKYRADAR_BASIC_AUTH_USERNAME=admin \
 SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
-docker compose up --build -d
+docker compose up -d
 ```
 
-compose 默认使用 MongoDB 8.2.7。后端健康检查以当前 FastAPI/ASGI 实现为准，目标环境发布前应复验 `/api/v1/health` 中各子项状态。
+compose 默认使用 MongoDB 8.2.7。SkyRadar 应用镜像由 compose 从当前源码构建，`SKYRADAR_IMAGE` 只作为本地构建产物 tag，不从远端 registry 拉取 SkyRadar 预构建镜像。后端健康检查以当前 FastAPI/ASGI 实现为准，目标环境发布前应复验 `/api/v1/health` 中各子项状态。
 
 ## 性能原则
 
