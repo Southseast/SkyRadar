@@ -13,7 +13,8 @@ import { formatDateTime } from "@/features/results/format"
 import { SettingsBox, SettingsBoxRow } from "@/features/settings/SettingsSection"
 import { getErrorMessage } from "@/lib/api/client"
 import { fetchLeakageCode, fetchLeakageInfo, patchLeakageDetail } from "@/lib/api/results"
-import type { AffectedAsset, Leakage, LeakageDetailForm } from "@/types/api"
+import { fetchQueryRules } from "@/lib/api/settings"
+import type { AffectedAsset, Leakage, LeakageDetailForm, QueryRule } from "@/types/api"
 
 const initialForm: LeakageDetailForm = {
   id: "",
@@ -23,10 +24,15 @@ const initialForm: LeakageDetailForm = {
   desc: "",
 }
 
+const searchSyntaxWords = new Set(["AND", "OR", "NOT"])
+const searchQualifierPattern = /^(repo|org|user|path|filename|extension|language|in|is|fork|size|symbol):/i
+const maxHighlightTerms = 16
+
 export function LeakageDetailPage() {
   const { id } = useParams()
   const [leakage, setLeakage] = useState<Leakage | null>(null)
   const [code, setCode] = useState("")
+  const [highlightTerms, setHighlightTerms] = useState<string[]>([])
   const [affect, setAffect] = useState<AffectedAsset[]>([])
   const [form, setForm] = useState<LeakageDetailForm>({ ...initialForm, id: id ?? "" })
   const [loading, setLoading] = useState(true)
@@ -56,13 +62,19 @@ export function LeakageDetailPage() {
         if (!info) {
           setLeakage(null)
           setCode("")
+          setHighlightTerms([])
           setAffect([])
           setError("未找到对应泄露记录。")
           return
         }
 
+        const rules = await fetchQueryRules().catch(() => [])
+
+        if (!mounted) return
+
         setLeakage(info)
         setCode(codeInfo?.code ? decodeBase64Utf8(codeInfo.code) : "")
+        setHighlightTerms(buildHighlightTerms(info, codeInfo?.affect ?? [], rules))
         setAffect(codeInfo?.affect ?? [])
         setForm({
           id,
@@ -75,6 +87,7 @@ export function LeakageDetailPage() {
         if (mounted) {
           setLeakage(null)
           setCode("")
+          setHighlightTerms([])
           setAffect([])
           setError(getErrorMessage(requestError))
         }
@@ -144,9 +157,7 @@ export function LeakageDetailPage() {
                 <Skeleton className="h-[320px] rounded" />
               </div>
             ) : (
-              <pre className="min-h-[320px] overflow-auto rounded-md border bg-surface-subtle p-3 font-mono text-xs leading-5 text-foreground">
-                {code || "暂无代码内容。"}
-              </pre>
+              <CodePreview code={code} highlightTerms={highlightTerms} />
             )}
           </SettingsBoxRow>
         </SettingsBox>
@@ -244,6 +255,35 @@ export function LeakageDetailPage() {
   )
 }
 
+function CodePreview({ code, highlightTerms }: { code: string; highlightTerms: string[] }) {
+  return (
+    <pre className="min-h-[320px] overflow-auto rounded-md border bg-surface-subtle p-3 font-mono text-xs leading-5 text-foreground">
+      {code ? <HighlightedCode code={code} terms={highlightTerms} /> : "暂无代码内容。"}
+    </pre>
+  )
+}
+
+function HighlightedCode({ code, terms }: { code: string; terms: string[] }) {
+  const parts = splitByHighlightTerms(code, terms)
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.highlight ? (
+          <mark
+            key={`${part.text}-${index}`}
+            className="rounded-sm bg-warning-bg px-0.5 font-semibold text-foreground ring-1 ring-warning/30"
+          >
+            {part.text}
+          </mark>
+        ) : (
+          <span key={`${part.text}-${index}`}>{part.text}</span>
+        ),
+      )}
+    </>
+  )
+}
+
 function AffectedAssetsList({ assets }: { assets: AffectedAsset[] }) {
   return (
     <div className="divide-y divide-border">
@@ -336,6 +376,86 @@ function DetailSkeleton() {
       <Skeleton className="h-4 w-40 rounded" />
     </div>
   )
+}
+
+function buildHighlightTerms(leakage: Leakage, affectedAssets: AffectedAsset[], rules: QueryRule[]) {
+  const matchedRule = rules.find((rule) => rule.tag === leakage.tag)
+  const terms = [
+    ...extractSearchTerms(matchedRule?.keyword ?? ""),
+    ...extractSearchTerms(leakage.tag),
+    ...affectedAssets.flatMap((asset) => extractSearchTerms(asset.value)),
+  ]
+
+  return uniqueTerms(terms).slice(0, maxHighlightTerms)
+}
+
+function extractSearchTerms(value: string) {
+  if (!value) return []
+
+  const terms: string[] = []
+  const quotedPattern = /"([^"]+)"|'([^']+)'/g
+  const withoutQuoted = value.replace(quotedPattern, (_match, doubleQuoted: string | undefined, singleQuoted: string | undefined) => {
+    terms.push(doubleQuoted ?? singleQuoted ?? "")
+    return " "
+  })
+
+  for (const token of withoutQuoted.split(/[\s()[\]{}]+/)) {
+    const cleaned = token.trim().replace(/^[,;]+|[,;]+$/g, "")
+    if (!cleaned || searchSyntaxWords.has(cleaned.toUpperCase()) || searchQualifierPattern.test(cleaned)) continue
+    terms.push(cleaned)
+  }
+
+  return terms.flatMap(splitCompoundTerm).filter(isHighlightTerm)
+}
+
+function splitCompoundTerm(term: string) {
+  const parts = term.split(/[|,]+/).flatMap((part) => part.split(/[-_/]+/))
+  return [term, ...parts]
+}
+
+function isHighlightTerm(term: string) {
+  const normalized = term.trim()
+  return normalized.length >= 3 && !searchSyntaxWords.has(normalized.toUpperCase()) && !searchQualifierPattern.test(normalized)
+}
+
+function uniqueTerms(terms: string[]) {
+  const seen = new Set<string>()
+  return terms
+    .map((term) => term.trim())
+    .filter((term) => {
+      const key = term.toLocaleLowerCase()
+      if (!term || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .sort((left, right) => right.length - left.length)
+}
+
+function splitByHighlightTerms(text: string, terms: string[]) {
+  if (!terms.length) return [{ text, highlight: false }]
+
+  const pattern = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi")
+  const parts: Array<{ text: string; highlight: boolean }> = []
+  let lastIndex = 0
+
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index ?? 0
+    if (index > lastIndex) {
+      parts.push({ text: text.slice(lastIndex, index), highlight: false })
+    }
+    parts.push({ text: match[0], highlight: true })
+    lastIndex = index + match[0].length
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ text: text.slice(lastIndex), highlight: false })
+  }
+
+  return parts.length ? parts : [{ text, highlight: false }]
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 function decodeBase64Utf8(value: string) {

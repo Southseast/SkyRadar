@@ -30,7 +30,7 @@
 | ID | 功能 | 状态 | 主要 API/路由 | 验收边界 |
 | --- | --- | --- | --- | --- |
 | F001 | 结果仪表盘和结果表格 | Done | `/`, `/api/v1/trends`, `/api/v1/statistics`, `/api/v1/leakages`, `PATCH /api/v1/leakages/{id}` | 列表、筛选、分页、统计、loading/empty/error、行级状态处理可用 |
-| F002 | 泄露详情 | Done | `/view/leakage/:id`, `/api/v1/leakages/{id}`, `/api/v1/leakages/{id}/code`, `PATCH /api/v1/leakages/{id}` | 详情加载、base64 解码、受影响资产、安全/忽略/备注提交可用 |
+| F002 | 泄露详情 | Done | `/view/leakage/:id`, `/api/v1/leakages/{id}`, `/api/v1/leakages/{id}/code`, `PATCH /api/v1/leakages/{id}` | 详情加载、base64 解码、命中内容高亮、受影响资产、安全/忽略/备注提交可用 |
 | F003 | 设置页框架和页签 | Done | `/setting`, `/setting/:tab` | tab 可直达，切换同步 URL |
 | F004 | GitHub 账号设置 | Done | `/api/v1/github-accounts` | 账号列表、添加、删除、配额展示和敏感字段过滤可用 |
 | F005 | 查询规则设置 | Done | `/api/v1/search-rules` | 规则列表、添加、编辑、启停、删除和 GitHub 搜索链接可用 |

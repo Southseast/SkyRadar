@@ -14,6 +14,7 @@
 
 - 当前前端源码位于 `client/`，技术栈为 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui。
 - 核心工作流已落地：结果仪表盘、结果表格、泄露详情、设置页和通知配置。
+- 泄露详情代码预览会基于对应查询规则 keyword、命中 tag 和受影响资产值高亮匹配内容；规则加载失败时不阻断详情查看。
 - 架构为 `AppShell` + page routes + feature modules + typed API adapter。
 - API adapter 集中在 `client/src/lib/api/*`，已收敛到 `/api/v1/*` REST response envelope。
 - Docker/nginx 静态资源目标使用 `client/dist`，`/api/v1/*` 反向代理行为保持稳定。
@@ -31,6 +32,9 @@
 
 ## 最近验证
 
+- `cd client && npm run test -- LeakageDetailPage.test.tsx` 通过，1 个 test file、3 tests。
+- `cd client && npm run lint` 通过。
+- `cd client && npm run build` 通过。
 - `cd client && npm run test -- --run` 通过，10 个 test files、24 tests。
 - `cd client && npm run lint` 通过。
 - `cd client && npm run build` 通过。

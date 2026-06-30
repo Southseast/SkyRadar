@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { LeakageDetailPage } from "@/pages/LeakageDetailPage"
 import { fetchLeakageCode, fetchLeakageInfo, patchLeakageDetail } from "@/lib/api/results"
+import { fetchQueryRules } from "@/lib/api/settings"
 
 vi.mock("@/lib/api/results", () => ({
   fetchLeakageCode: vi.fn(),
@@ -12,15 +13,22 @@ vi.mock("@/lib/api/results", () => ({
   patchLeakageDetail: vi.fn(),
 }))
 
+vi.mock("@/lib/api/settings", () => ({
+  fetchQueryRules: vi.fn(),
+}))
+
 const mockedFetchLeakageInfo = vi.mocked(fetchLeakageInfo)
 const mockedFetchLeakageCode = vi.mocked(fetchLeakageCode)
 const mockedPatchLeakageDetail = vi.mocked(patchLeakageDetail)
+const mockedFetchQueryRules = vi.mocked(fetchQueryRules)
 
 describe("LeakageDetailPage", () => {
   beforeEach(() => {
     mockedFetchLeakageInfo.mockReset()
     mockedFetchLeakageCode.mockReset()
     mockedPatchLeakageDetail.mockReset()
+    mockedFetchQueryRules.mockReset()
+    mockedFetchQueryRules.mockResolvedValue([])
   })
 
   it("loads leakage detail, decodes code, and submits the compatible payload", async () => {
@@ -43,6 +51,14 @@ describe("LeakageDetailPage", () => {
       code: "Y29uc3Qgc2VjcmV0ID0gJ3Rva2VuJw==",
       affect: [{ type: "token", value: "token" }],
     })
+    mockedFetchQueryRules.mockResolvedValue([
+      {
+        _id: "rule-1",
+        keyword: '"token"',
+        tag: "credential",
+        enabled: true,
+      },
+    ])
     mockedPatchLeakageDetail.mockResolvedValue({ message: "处理成功" })
 
     render(
@@ -54,8 +70,9 @@ describe("LeakageDetailPage", () => {
     )
 
     expect(await screen.findByText("acme/skyradar")).toBeInTheDocument()
-    expect(screen.getByText("const secret = 'token'")).toBeInTheDocument()
-    expect(screen.getAllByText("token")).toHaveLength(2)
+    expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent === "const secret = 'token'")).toBeInTheDocument()
+    expect(screen.getAllByText("token")).toHaveLength(3)
+    expect(screen.getAllByText("token")[0].tagName).toBe("MARK")
 
     await userEvent.click(screen.getByRole("button", { name: "确认" }))
 
