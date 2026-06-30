@@ -4,6 +4,7 @@
 # @Date        : 2026/6/8 10:36
 # @Description : Provides GitHub search repository operations.
 
+import datetime
 import random
 
 from pymongo import ASCENDING, DESCENDING, ReturnDocument, errors
@@ -131,6 +132,9 @@ def result_exists(filters):
 
 
 def insert_result(leakage):
+    discovered_at = datetime.datetime.now(datetime.UTC)
+    leakage.setdefault("discovered_at", discovered_at)
+    leakage.setdefault("discovered_timestamp", discovered_at.timestamp())
     return result_col.insert_one(leakage)
 
 

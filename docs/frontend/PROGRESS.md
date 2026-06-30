@@ -15,6 +15,8 @@
 - 当前前端源码位于 `client/`，技术栈为 React、Vite、TypeScript、Tailwind CSS 和 shadcn/ui。
 - 核心工作流已落地：结果仪表盘、结果表格、泄露详情、设置页和通知配置。
 - 结果表格将仓库和文件分列展示且仅作为文本信息；操作列提供明确的泄露详情代码入口和 GitHub 源代码跳转入口。
+- 结果表格支持本页复选、清空选择和批量标记误报，批量操作复用单条结果处理 API。
+- 结果列表和泄露详情同时展示 SkyRadar `discovered_at` 发现时间与 GitHub 侧 `datetime` 更新时间；前端会把后端无时区 ISO 字符串按 UTC 解析后展示为本地时间。
 - 泄露详情代码预览会基于对应查询规则 keyword、命中 tag 和受影响资产值高亮匹配内容；长代码默认只展示摘要片段，用户可显式展开完整内容；规则加载失败时不阻断详情查看。
 - 查询规则设置支持选择 GitHub Code 或 Repositories 检索类型，旧规则缺省按 Code 展示和提交。
 - 架构为 `AppShell` + page routes + feature modules + typed API adapter。

@@ -316,6 +316,8 @@ server/
 核心资源：
 
 - `GET /api/v1/leakages` 使用显式 query 字段过滤、排序和分页，禁止透传 Mongo 查询操作符。
+- 泄露结果的 `discovered_at`/`discovered_timestamp` 表示 SkyRadar 首次写入该结果的发现时间，列表排序和 `GET /api/v1/trends` 的今日统计以该字段为准。
+- 泄露结果的 `datetime` 表示 GitHub 侧文件或仓库更新时间，只用于展示和排查上下文，不作为发现时间。
 - `GET /api/v1/leakages/{leakage_id}` 返回泄露详情元信息，不包含代码正文。
 - `PATCH /api/v1/leakages/{leakage_id}` 更新 `security`、`ignored`、`desc` 和可选同项目结果。
 - `GET /api/v1/leakages/{leakage_id}/code` 返回 base64 编码代码和受影响资产；代码内容不得进入普通日志、OpenAPI 示例或测试快照。

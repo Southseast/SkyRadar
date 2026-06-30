@@ -11,6 +11,13 @@ import psutil
 from api.statistics import repository as statistic_repository
 
 
+def _today_filters(extra_filters, today_start):
+    return {
+        **extra_filters,
+        "discovered_timestamp": {"$gte": today_start},
+    }
+
+
 def summary(tag=None):
     today_start = int(
         datetime.datetime.combine(datetime.date.today(), datetime.time.min).timestamp()
@@ -22,10 +29,10 @@ def summary(tag=None):
             "risk": statistic_repository.count_results({"tag": tag, "security": 0, "desc": {"$exists": True}}),
         }
         today = {
-            "total": statistic_repository.count_results({"tag": tag, "timestamp": {"$gte": today_start}}),
-            "ignore": statistic_repository.count_results({"tag": tag, "timestamp": {"$gte": today_start}, "security": 1}),
+            "total": statistic_repository.count_results(_today_filters({"tag": tag}, today_start)),
+            "ignore": statistic_repository.count_results(_today_filters({"tag": tag, "security": 1}, today_start)),
             "risk": statistic_repository.count_results(
-                {"tag": tag, "timestamp": {"$gte": today_start}, "security": 0, "desc": {"$exists": True}}
+                _today_filters({"tag": tag, "security": 0, "desc": {"$exists": True}}, today_start)
             ),
         }
     else:
@@ -35,10 +42,10 @@ def summary(tag=None):
             "risk": statistic_repository.count_results({"security": 0, "desc": {"$exists": True}}),
         }
         today = {
-            "total": statistic_repository.count_results({"timestamp": {"$gte": today_start}}),
-            "ignore": statistic_repository.count_results({"timestamp": {"$gte": today_start}, "security": 1}),
+            "total": statistic_repository.count_results(_today_filters({}, today_start)),
+            "ignore": statistic_repository.count_results(_today_filters({"security": 1}, today_start)),
             "risk": statistic_repository.count_results(
-                {"timestamp": {"$gte": today_start}, "security": 0, "desc": {"$exists": True}}
+                _today_filters({"security": 0, "desc": {"$exists": True}}, today_start)
             ),
         }
     if statistic_repository.count_settings({"key": "task"}):

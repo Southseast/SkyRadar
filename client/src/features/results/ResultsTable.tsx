@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import { ExternalLink, FileCode, Search, ShieldCheck } from "lucide-react"
 import { Link } from "react-router-dom"
 
@@ -13,9 +14,20 @@ interface ResultsTableProps {
   loading: boolean
   error?: string | null
   onMarkIgnored: (leakage: Leakage) => void
+  selectedIds: Set<string>
+  onToggleSelection: (leakageId: string, selected: boolean) => void
+  onTogglePageSelection: (selected: boolean) => void
 }
 
-export function ResultsTable({ results, loading, error, onMarkIgnored }: ResultsTableProps) {
+export function ResultsTable({
+  results,
+  loading,
+  error,
+  onMarkIgnored,
+  selectedIds,
+  onToggleSelection,
+  onTogglePageSelection,
+}: ResultsTableProps) {
   if (loading) {
     return (
       <div className="divide-y divide-border">
@@ -45,10 +57,21 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
     )
   }
 
+  const selectedCount = results.filter((item) => selectedIds.has(item._id)).length
+  const allSelected = selectedCount === results.length
+  const partiallySelected = selectedCount > 0 && !allSelected
+
   return (
     <div className="divide-y divide-border">
-      <div className="hidden gap-3 bg-surface-subtle px-4 py-2 text-xs font-semibold text-muted-foreground lg:grid lg:grid-cols-[8.5rem_minmax(11rem,1fr)_minmax(14rem,1.2fr)_5.5rem_7rem_5.5rem_13rem] lg:items-center">
+      <div className="hidden gap-3 bg-surface-subtle px-4 py-2 text-xs font-semibold text-muted-foreground lg:grid lg:grid-cols-[2rem_8.5rem_8.5rem_minmax(10rem,1fr)_minmax(12rem,1.1fr)_5rem_6.5rem_5rem_13rem] lg:items-center">
+        <SelectionCheckbox
+          ariaLabel={allSelected ? "取消选择本页泄露结果" : "选择本页泄露结果"}
+          checked={allSelected}
+          indeterminate={partiallySelected}
+          onChange={(selected) => onTogglePageSelection(selected)}
+        />
         <div>发现时间</div>
+        <div>更新时间</div>
         <div>仓库</div>
         <div>文件</div>
         <div>语言</div>
@@ -66,8 +89,14 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
         return (
           <article
             key={item._id}
-            className="grid gap-3 px-4 py-3 transition-colors hover:bg-hover-surface/60 lg:grid-cols-[8.5rem_minmax(11rem,1fr)_minmax(14rem,1.2fr)_5.5rem_7rem_5.5rem_13rem] lg:items-center"
+            className="grid gap-3 px-4 py-3 transition-colors hover:bg-hover-surface/60 lg:grid-cols-[2rem_8.5rem_8.5rem_minmax(10rem,1fr)_minmax(12rem,1.1fr)_5rem_6.5rem_5rem_13rem] lg:items-center"
           >
+            <SelectionCheckbox
+              ariaLabel={`选择 ${item.project || item._id}`}
+              checked={selectedIds.has(item._id)}
+              onChange={(selected) => onToggleSelection(item._id, selected)}
+            />
+            <div className="text-xs text-muted-foreground">{formatDateTime(item.discovered_at)}</div>
             <div className="text-xs text-muted-foreground">{formatDateTime(item.datetime)}</div>
 
             <div className="min-w-0">
@@ -138,6 +167,37 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
         )
       })}
     </div>
+  )
+}
+
+function SelectionCheckbox({
+  ariaLabel,
+  checked,
+  indeterminate = false,
+  onChange,
+}: {
+  ariaLabel: string
+  checked: boolean
+  indeterminate?: boolean
+  onChange: (selected: boolean) => void
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.indeterminate = indeterminate
+    }
+  }, [indeterminate])
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      aria-label={ariaLabel}
+      checked={checked}
+      onChange={(event) => onChange(event.currentTarget.checked)}
+      className="size-4 rounded border-border text-primary accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    />
   )
 }
 

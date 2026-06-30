@@ -50,7 +50,7 @@ result_cache = Redis(
 
 
 def create_indexes():
-    for field in ["language", "tag", "datetime", "security", "desc", "ignore", "timestamp"]:
+    for field in ["language", "tag", "datetime", "discovered_at", "security", "desc", "ignore", "timestamp", "discovered_timestamp"]:
         try:
             result_col.create_index(field, background=True)
         except Exception:

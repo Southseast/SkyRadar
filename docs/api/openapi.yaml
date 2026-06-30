@@ -147,6 +147,8 @@ paths:
                     tag: github-token
                     desc: ""
                     datetime: "2026-06-15T10:00:00Z"
+                    discovered_at: "2026-06-15T10:05:00Z"
+                    discovered_timestamp: 1781517900
                 meta:
                   page: 1
                   page_size: 20
@@ -890,6 +892,8 @@ components:
         - ignore
         - tag
         - datetime
+        - discovered_at
+        - discovered_timestamp
       properties:
         _id:
           type: string
@@ -928,6 +932,13 @@ components:
           type: string
         datetime:
           type: string
+          description: GitHub 侧文件或仓库更新时间。
+        discovered_at:
+          type: string
+          description: SkyRadar 首次写入该泄露结果的发现时间。
+        discovered_timestamp:
+          type: number
+          description: SkyRadar 发现时间的 Unix timestamp。
     LeakageUpdateRequest:
       type: object
       required:

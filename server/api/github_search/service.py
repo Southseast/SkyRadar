@@ -111,6 +111,13 @@ def _repository_leakage(query, repo):
     }
 
 
+def _mark_discovered(leakage):
+    discovered_at = datetime.datetime.now(datetime.UTC)
+    leakage.setdefault("discovered_at", discovered_at)
+    leakage.setdefault("discovered_timestamp", discovered_at.timestamp())
+    return leakage
+
+
 def _is_blacklisted(link):
     link = str(link or "")
     for blacklist in worker_repository.iter_blacklist():
@@ -173,6 +180,7 @@ def search_github_code(query, page, github_or_account, github_username=None, *, 
                     continue
                 if not _append_repository_notices(leakage, mail_notice_list, webhook_notice_list):
                     continue
+                _mark_discovered(leakage)
                 try:
                     worker_repository.insert_result(leakage)
                     logger.info(leakage.get("project"))
@@ -232,6 +240,7 @@ def search_github_code(query, page, github_or_account, github_username=None, *, 
                         leakage.get("datetime"),
                     )
                 )
+            _mark_discovered(leakage)
             try:
                 worker_repository.insert_result(leakage)
                 logger.info(leakage.get("project"))

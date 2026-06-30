@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 
+import { CheckSquare, ShieldCheck, X } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ResultsDashboard } from "@/features/results/ResultsDashboard"
@@ -26,6 +28,8 @@ export function ResultsPage() {
   const [loadingResults, setLoadingResults] = useState(true)
   const [resultError, setResultError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [batchLoading, setBatchLoading] = useState(false)
 
   const updateQuery = useCallback(
     (next: ResultQueryState) => {
@@ -58,9 +62,15 @@ export function ResultsPage() {
       })
       setResults(response.result)
       setTotal(response.total)
+      setSelectedIds((current) => {
+        const currentPageIds = new Set(response.result.map((item) => item._id))
+        const next = new Set([...current].filter((id) => currentPageIds.has(id)))
+        return next.size === current.size ? current : next
+      })
     } catch (requestError) {
       setResults([])
       setTotal(0)
+      setSelectedIds(new Set())
       setResultError(getErrorMessage(requestError))
     } finally {
       setLoadingResults(false)
@@ -103,6 +113,36 @@ export function ResultsPage() {
   }, [queryState.tag])
 
   const pageCount = Math.max(1, Math.ceil(total / queryState.limit))
+  const selectedItems = results.filter((item) => selectedIds.has(item._id))
+  const selectedCount = selectedItems.length
+
+  function handleToggleSelection(leakageId: string, selected: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (selected) {
+        next.add(leakageId)
+      } else {
+        next.delete(leakageId)
+      }
+      return next
+    })
+  }
+
+  function handleTogglePageSelection(selected: boolean) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (selected) {
+        results.forEach((item) => next.add(item._id))
+      } else {
+        results.forEach((item) => next.delete(item._id))
+      }
+      return next
+    })
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
 
   async function handleMarkIgnored(leakage: Leakage) {
     setNotice(null)
@@ -115,9 +155,42 @@ export function ResultsPage() {
         desc: leakage.desc ?? "",
       })
       setNotice("处理成功")
+      setSelectedIds((current) => {
+        const next = new Set(current)
+        next.delete(leakage._id)
+        return next
+      })
       await Promise.all([loadResults(), loadTrend()])
     } catch (requestError) {
       setResultError(getErrorMessage(requestError))
+    }
+  }
+
+  async function handleBatchMarkIgnored() {
+    if (!selectedItems.length) return
+
+    setNotice(null)
+    setResultError(null)
+    setBatchLoading(true)
+    try {
+      await Promise.all(
+        selectedItems.map((leakage) =>
+          patchLeakage({
+            id: leakage._id,
+            project: leakage.project,
+            ignore: 1,
+            security: 1,
+            desc: leakage.desc ?? "",
+          }),
+        ),
+      )
+      setNotice(`已批量标记 ${selectedItems.length} 条为误报`)
+      clearSelection()
+      await Promise.all([loadResults(), loadTrend()])
+    } catch (requestError) {
+      setResultError(getErrorMessage(requestError))
+    } finally {
+      setBatchLoading(false)
     }
   }
 
@@ -141,8 +214,34 @@ export function ResultsPage() {
           </div>
           <ResultsFilters state={queryState} tagOptions={tagOptions} languageOptions={languageOptions} onChange={updateQuery} />
         </SettingsBoxRow>
+        <SettingsBoxRow className="py-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <CheckSquare className="size-4" aria-hidden="true" />
+              <span>已选择 {selectedCount.toLocaleString("zh-CN")} 条</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" className="rounded-md" disabled={!selectedCount || batchLoading} onClick={clearSelection}>
+                <X className="size-4" aria-hidden="true" />
+                清空选择
+              </Button>
+              <Button variant="outline" size="sm" className="rounded-md" disabled={!selectedCount || batchLoading} onClick={handleBatchMarkIgnored}>
+                <ShieldCheck className="size-4" aria-hidden="true" />
+                {batchLoading ? "处理中" : "批量误报"}
+              </Button>
+            </div>
+          </div>
+        </SettingsBoxRow>
         <SettingsBoxRow className="p-0">
-          <ResultsTable results={results} loading={loadingResults} error={resultError} onMarkIgnored={handleMarkIgnored} />
+          <ResultsTable
+            results={results}
+            loading={loadingResults}
+            error={resultError}
+            onMarkIgnored={handleMarkIgnored}
+            selectedIds={selectedIds}
+            onToggleSelection={handleToggleSelection}
+            onTogglePageSelection={handleTogglePageSelection}
+          />
         </SettingsBoxRow>
         <SettingsBoxRow>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

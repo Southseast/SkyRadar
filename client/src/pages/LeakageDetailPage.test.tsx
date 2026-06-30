@@ -45,6 +45,8 @@ describe("LeakageDetailPage", () => {
       ignore: 0,
       tag: "credential",
       desc: "待复核",
+      discovered_at: "2026-06-05T09:00:00Z",
+      discovered_timestamp: 1780650000,
       datetime: "2026-06-05T08:00:00Z",
     })
     mockedFetchLeakageCode.mockResolvedValue({
@@ -71,6 +73,7 @@ describe("LeakageDetailPage", () => {
     )
 
     expect(await screen.findByText("acme/skyradar")).toBeInTheDocument()
+    expect(screen.getByText("发现时间")).toBeInTheDocument()
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && element.textContent === "const secret = 'token'")).toBeInTheDocument()
     expect(screen.getAllByText("token")).toHaveLength(3)
     expect(screen.getAllByText("token")[0].tagName).toBe("MARK")
@@ -102,6 +105,8 @@ describe("LeakageDetailPage", () => {
       security: 0,
       ignore: 0,
       tag: "未标记",
+      discovered_at: "2026-06-05T09:00:00Z",
+      discovered_timestamp: 1780650000,
       datetime: undefined,
     } as never)
     mockedFetchLeakageCode.mockResolvedValue({
@@ -134,6 +139,8 @@ describe("LeakageDetailPage", () => {
       security: 1,
       ignore: 1,
       tag: "credential",
+      discovered_at: "2026-06-05T09:00:00Z",
+      discovered_timestamp: 1780650000,
       datetime: "2026-06-05T08:00:00Z",
     })
     mockedFetchLeakageCode.mockResolvedValue({
@@ -169,6 +176,8 @@ describe("LeakageDetailPage", () => {
       security: 0,
       ignore: 0,
       tag: "credential",
+      discovered_at: "2026-06-05T09:00:00Z",
+      discovered_timestamp: 1780650000,
       datetime: "2026-06-05T08:00:00Z",
     })
     mockedFetchLeakageCode.mockResolvedValue({

@@ -372,6 +372,8 @@ def test_search_paged_results_insert_multiple_repos_and_mark_query_success(monke
     assert captured["rates"] == [{"username": "octocat", "remaining": 42}]
     assert [document["_id"] for document in captured["inserted"]] == ["sha-1", "sha-2"]
     assert captured["inserted"][0]["affect"] == ["example.com"]
+    assert captured["inserted"][0]["discovered_at"].__class__.__name__ == "datetime"
+    assert isinstance(captured["inserted"][0]["discovered_timestamp"], float)
     assert captured["query_success"] == [{"tag": "github-token", "page": 1, "api_total": 7}]
     assert len(notices["mail"]) == 2
     assert notices["webhook"][1].startswith("[org/repo/two.py]")
@@ -426,6 +428,8 @@ def test_search_repositories_inserts_repository_results(monkeypatch):
     assert captured["inserted"][0]["filename"] == "repo"
     assert captured["inserted"][0]["search_type"] == "repositories"
     assert captured["inserted"][0]["code"] == ""
+    assert captured["inserted"][0]["discovered_at"].__class__.__name__ == "datetime"
+    assert isinstance(captured["inserted"][0]["discovered_timestamp"], float)
     assert captured["query_success"] == [{"tag": "github-token", "page": 0, "api_total": 5}]
     assert notices["webhook"] == ["[org/repo](https://github.com/org/repo) 更新于 2024-01-02 03:04:05"]
 

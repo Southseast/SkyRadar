@@ -10,8 +10,11 @@ class FakeCursor:
         self.documents = documents
         self.calls = []
 
-    def sort(self, field, direction):
-        self.calls.append(("sort", field, direction))
+    def sort(self, field, direction=None):
+        if direction is None:
+            self.calls.append(("sort", field))
+        else:
+            self.calls.append(("sort", field, direction))
         return self
 
     def limit(self, value):
@@ -99,7 +102,7 @@ def test_leakage_results_list_uses_rest_filters_and_pagination(client, monkeypat
     assert captured["count_filters"] == captured["filters"]
     assert captured["projection"] == {"code": 0, "affect": 0}
     assert cursor.calls == [
-        ("sort", "datetime", result.DESCENDING),
+        ("sort", "discovered_at", result.DESCENDING),
         ("limit", 2),
         ("skip", 4),
     ]

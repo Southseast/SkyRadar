@@ -84,6 +84,9 @@ def test_statistics_summary_uses_rest_envelope(client, monkeypatch):
     assert response.get_json()["data"]["engine"] == {"status": False, "last": 0}
     assert {"security": 1} in captured
     assert {"security": 0, "desc": {"$exists": True}} in captured
+    today_start = captured[3]["discovered_timestamp"]["$gte"]
+    assert {"discovered_timestamp": {"$gte": today_start}} in captured
+    assert {"security": 1, "discovered_timestamp": {"$gte": today_start}} in captured
 
 
 def test_legacy_statistics_routes_are_not_registered(client):

@@ -19,6 +19,7 @@
 - 运行时目标为 Python 3.13；主要依赖为 PyMongo 4、Redis client 8、Huey 2、PyGithub 2、Requests 2。
 - compose 默认拓扑为 `skyradar`、`nginx`、`worker`、`redis` 和 `mongo`。
 - compose 默认通过 named volume 持久化 nginx/all-in-one Basic Auth 自动生成凭据，重新 build 或重建容器后登录凭据保持不变。
+- 泄露结果新增 SkyRadar 发现时间字段 `discovered_at`/`discovered_timestamp`；列表排序和今日统计使用发现时间，`datetime` 仅表示 GitHub 侧更新时间。
 - OpenAPI 契约源为 `docs/api/openapi.yaml`；契约已收敛到最终 `/api/v1/*` RESTful 形态；`GET /api/v1/openapi.json` 和 `GET /api/v1/docs` 默认关闭，`SKYRADAR_API_DOCS_ENABLED=true` 时启用。
 - 业务代码已按 domain/core/integrations/workers 边界组织，测试目录已按 domain/core/workers/harness 边界内聚。
 - 任务调度 minute 语义已在后端文档中收敛为 Huey 固定 tick + MongoDB `minute/next_due_at` 控制实际周期；`PUT /api/v1/task-schedules/current` 后新周期不依赖 SIGHUP 动态改 crontab。

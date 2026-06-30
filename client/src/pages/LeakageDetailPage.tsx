@@ -363,7 +363,8 @@ function LeakageSummary({ leakage }: { leakage: Leakage | null }) {
         )}
       </SummaryRow>
       <SummaryRow label="语言">{leakage.language || "未知"}</SummaryRow>
-      <SummaryRow label="上传时间">{formatDateTime(leakage.datetime)}</SummaryRow>
+      <SummaryRow label="发现时间">{formatDateTime(leakage.discovered_at)}</SummaryRow>
+      <SummaryRow label="更新时间">{formatDateTime(leakage.datetime)}</SummaryRow>
       <SummaryRow label="命中标签">
         <Link to={`/?tag=${encodeURIComponent(leakage.tag)}`}>
           <Badge variant="outline" className="rounded">

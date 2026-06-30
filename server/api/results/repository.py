@@ -14,7 +14,7 @@ def ensure_indexes():
 def list_leakages(filters, limit, from_):
     return list(
         result_col.find(filters, {"code": 0, "affect": 0})
-        .sort("datetime", DESCENDING)
+        .sort("discovered_at", DESCENDING)
         .limit(limit)
         .skip(limit * (from_ - 1))
     )

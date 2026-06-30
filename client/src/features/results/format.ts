@@ -1,6 +1,6 @@
 export function formatDateTime(value?: string | number | Date | null) {
   if (!value) return "-"
-  const date = new Date(value)
+  const date = new Date(normalizeDateTimeInput(value))
   if (Number.isNaN(date.getTime())) return "-"
 
   const year = date.getFullYear()
@@ -10,6 +10,14 @@ export function formatDateTime(value?: string | number | Date | null) {
   const minute = String(date.getMinutes()).padStart(2, "0")
 
   return `${year}-${month}-${day} ${hour}:${minute}`
+}
+
+function normalizeDateTimeInput(value: string | number | Date) {
+  if (typeof value !== "string") return value
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(value)) return value
+  if (/(?:[zZ]|[+-]\d{2}:?\d{2})$/.test(value)) return value
+
+  return `${value}Z`
 }
 
 export function formatRelativeTime(seconds?: number) {

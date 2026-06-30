@@ -43,6 +43,8 @@ export interface Leakage {
   tag: string
   desc?: string
   datetime?: string
+  discovered_at: string
+  discovered_timestamp: number
   timestamp?: number
 }
 
