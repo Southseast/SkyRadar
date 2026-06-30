@@ -70,6 +70,8 @@ describe("QueryRules", () => {
 
     expect(await screen.findByText("credential")).toBeInTheDocument()
     expect(screen.getByText("password OR token")).toBeInTheDocument()
+    expect(screen.getByLabelText("查询类型")).toBeInTheDocument()
+    expect(screen.getByText("启用状态")).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole("switch", { name: "credential 启用状态" }))
 

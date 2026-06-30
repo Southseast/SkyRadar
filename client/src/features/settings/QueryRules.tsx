@@ -184,25 +184,26 @@ export function QueryRules() {
       <SettingsBox>
         <SettingsBoxRow className="space-y-3">
           <SettingsRowTitle icon={Search}>{editingId ? "编辑查询规则" : "添加查询规则"}</SettingsRowTitle>
-          <form className="grid gap-3 xl:grid-cols-[220px_170px_1fr_auto_auto] xl:items-end" onSubmit={handleSubmit}>
+          <form className="grid gap-3 xl:grid-cols-[220px_170px_1fr_110px_auto] xl:items-end" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
               <Label htmlFor="query-rule-tag">名称</Label>
               <Input
                 id="query-rule-tag"
+                className="h-9 rounded-md"
                 value={form.tag}
                 onChange={(event) => setForm((current) => ({ ...current, tag: event.target.value }))}
                 placeholder="例如 credential"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="query-rule-search-type">检索类型</Label>
+              <Label htmlFor="query-rule-search-type">查询类型</Label>
               <Select
                 value={form.search_type}
                 onValueChange={(search_type) =>
                   setForm((current) => ({ ...current, search_type: search_type === "repositories" ? "repositories" : "code" }))
                 }
               >
-                <SelectTrigger id="query-rule-search-type" className="w-full rounded-md">
+                <SelectTrigger id="query-rule-search-type" className="h-9 w-full rounded-md">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -218,19 +219,23 @@ export function QueryRules() {
                 value={form.keyword}
                 onChange={(event) => setForm((current) => ({ ...current, keyword: event.target.value }))}
                 placeholder="GitHub 搜索语法，支持 OR/AND/NOT"
+                className="h-9 rounded-md"
               />
             </div>
-            <label className="flex h-9 items-center gap-2 text-sm">
-              <Switch checked={form.enabled} onCheckedChange={(enabled) => setForm((current) => ({ ...current, enabled }))} />
-              启用
-            </label>
+            <div className="space-y-1.5">
+              <Label htmlFor="query-rule-enabled">启用状态</Label>
+              <label className="flex h-9 items-center gap-2 text-sm">
+                <Switch id="query-rule-enabled" checked={form.enabled} onCheckedChange={(enabled) => setForm((current) => ({ ...current, enabled }))} />
+                启用
+              </label>
+            </div>
             <div className="flex gap-2">
-              <Button type="submit" className="rounded-md" disabled={saving}>
+              <Button type="submit" className="h-9 rounded-md" disabled={saving}>
                 <Plus className="size-4" aria-hidden="true" />
                 {saving ? "保存中" : "保存"}
               </Button>
               {editingId ? (
-                <Button type="button" variant="outline" className="rounded-md" onClick={resetForm}>
+                <Button type="button" variant="outline" className="h-9 rounded-md" onClick={resetForm}>
                   取消
                 </Button>
               ) : null}
