@@ -151,4 +151,56 @@ describe("LeakageDetailPage", () => {
 
     expect(await screen.findByText("暂无代码内容。")).toBeInTheDocument()
   })
+
+  it("summarizes long code by default and expands on demand", async () => {
+    const longCode = Array.from({ length: 220 }, (_, index) =>
+      index === 120 ? "const token = 'matched-secret'" : `const line${index} = ${index}`,
+    ).join("\n")
+
+    mockedFetchLeakageInfo.mockResolvedValue({
+      _id: "leakage-4",
+      link: "https://github.com/acme/skyradar/blob/main/long.py",
+      project: "acme/skyradar",
+      project_url: "https://github.com/acme/skyradar",
+      language: "Python",
+      username: "acme",
+      filepath: "long.py",
+      filename: "long.py",
+      security: 0,
+      ignore: 0,
+      tag: "credential",
+      datetime: "2026-06-05T08:00:00Z",
+    })
+    mockedFetchLeakageCode.mockResolvedValue({
+      code: btoa(longCode),
+      affect: [{ type: "token", value: "matched-secret" }],
+    })
+    mockedFetchQueryRules.mockResolvedValue([
+      {
+        _id: "rule-1",
+        keyword: '"matched-secret"',
+        tag: "credential",
+        search_type: "code",
+        enabled: true,
+      },
+    ])
+
+    render(
+      <MemoryRouter initialEntries={["/view/leakage/leakage-4"]}>
+        <Routes>
+          <Route path="/view/leakage/:id" element={<LeakageDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText(/摘要内容，已省略/)).toBeInTheDocument()
+    expect(screen.getByText((_, element) => element?.tagName === "PRE" && Boolean(element.textContent?.includes("matched-secret")))).toBeInTheDocument()
+    expect(screen.queryByText((_, element) => element?.tagName === "PRE" && Boolean(element.textContent?.includes("const line0 = 0")))).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole("button", { name: "显示完整内容" }))
+
+    expect(screen.getByText(/完整内容，220 行/)).toBeInTheDocument()
+    expect(screen.getByText((_, element) => element?.tagName === "PRE" && Boolean(element.textContent?.includes("const line0 = 0")))).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "收起为摘要" })).toBeInTheDocument()
+  })
 })

@@ -1,4 +1,4 @@
-import { ExternalLink, Search, Save } from "lucide-react"
+import { ExternalLink, Maximize2, Minimize2, Search, Save } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
@@ -27,6 +27,10 @@ const initialForm: LeakageDetailForm = {
 const searchSyntaxWords = new Set(["AND", "OR", "NOT"])
 const searchQualifierPattern = /^(repo|org|user|path|filename|extension|language|in|is|fork|size|symbol):/i
 const maxHighlightTerms = 16
+const codePreviewContextLines = 8
+const codePreviewFallbackLines = 80
+const codePreviewMaxFullLines = 140
+const codePreviewMaxFullChars = 12000
 
 export function LeakageDetailPage() {
   const { id } = useParams()
@@ -157,7 +161,7 @@ export function LeakageDetailPage() {
                 <Skeleton className="h-[320px] rounded" />
               </div>
             ) : (
-              <CodePreview code={code} highlightTerms={highlightTerms} />
+              <CodePreview key={id ?? "code-preview"} code={code} highlightTerms={highlightTerms} />
             )}
           </SettingsBoxRow>
         </SettingsBox>
@@ -256,10 +260,34 @@ export function LeakageDetailPage() {
 }
 
 function CodePreview({ code, highlightTerms }: { code: string; highlightTerms: string[] }) {
+  const [showFullCode, setShowFullCode] = useState(false)
+
+  const preview = buildCodePreview(code, highlightTerms)
+  const displayedCode = showFullCode || !preview.truncated ? code : preview.text
+  const lineCount = code ? code.split("\n").length : 0
+  const canToggle = Boolean(code && preview.truncated)
+
   return (
-    <pre className="min-h-[320px] overflow-auto rounded-md border bg-surface-subtle p-3 font-mono text-xs leading-5 text-foreground">
-      {code ? <HighlightedCode code={code} terms={highlightTerms} /> : "暂无代码内容。"}
-    </pre>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>
+          {code
+            ? showFullCode || !preview.truncated
+              ? `完整内容，${lineCount} 行`
+              : `摘要内容，已省略 ${preview.omittedLineCount} 行`
+            : "暂无代码内容"}
+        </span>
+        {canToggle ? (
+          <Button type="button" variant="outline" size="sm" className="rounded-md" onClick={() => setShowFullCode((current) => !current)}>
+            {showFullCode ? <Minimize2 className="size-4" aria-hidden="true" /> : <Maximize2 className="size-4" aria-hidden="true" />}
+            {showFullCode ? "收起为摘要" : "显示完整内容"}
+          </Button>
+        ) : null}
+      </div>
+      <pre className="max-h-[560px] min-h-[320px] overflow-auto rounded-md border bg-surface-subtle p-3 font-mono text-xs leading-5 text-foreground">
+        {displayedCode ? <HighlightedCode code={displayedCode} terms={highlightTerms} /> : "暂无代码内容。"}
+      </pre>
+    </div>
   )
 }
 
@@ -452,6 +480,80 @@ function splitByHighlightTerms(text: string, terms: string[]) {
   }
 
   return parts.length ? parts : [{ text, highlight: false }]
+}
+
+function buildCodePreview(code: string, terms: string[]) {
+  if (!code) {
+    return { text: "", truncated: false, omittedLineCount: 0 }
+  }
+
+  const lines = code.split("\n")
+  if (lines.length <= codePreviewMaxFullLines && code.length <= codePreviewMaxFullChars) {
+    return { text: code, truncated: false, omittedLineCount: 0 }
+  }
+
+  const matchedLineIndexes = findMatchedLineIndexes(lines, terms)
+  const ranges = matchedLineIndexes.length
+    ? mergeLineRanges(
+        matchedLineIndexes.map((lineIndex) => ({
+          start: Math.max(0, lineIndex - codePreviewContextLines),
+          end: Math.min(lines.length - 1, lineIndex + codePreviewContextLines),
+        })),
+      )
+    : [{ start: 0, end: Math.min(lines.length - 1, codePreviewFallbackLines - 1) }]
+
+  const selectedLineCount = ranges.reduce((total, range) => total + range.end - range.start + 1, 0)
+  const excerptLines: string[] = []
+  let previousEnd = -1
+
+  for (const range of ranges) {
+    if (range.start > previousEnd + 1) {
+      const omitted = range.start - previousEnd - 1
+      excerptLines.push(`... 已省略 ${omitted} 行 ...`)
+    }
+    excerptLines.push(...lines.slice(range.start, range.end + 1))
+    previousEnd = range.end
+  }
+
+  if (previousEnd < lines.length - 1) {
+    excerptLines.push(`... 已省略 ${lines.length - previousEnd - 1} 行 ...`)
+  }
+
+  return {
+    text: excerptLines.join("\n"),
+    truncated: true,
+    omittedLineCount: Math.max(0, lines.length - selectedLineCount),
+  }
+}
+
+function findMatchedLineIndexes(lines: string[], terms: string[]) {
+  const normalizedTerms = uniqueTerms(terms).map((term) => term.toLocaleLowerCase())
+  if (!normalizedTerms.length) return []
+
+  const matchedLineIndexes: number[] = []
+  lines.forEach((line, index) => {
+    const normalizedLine = line.toLocaleLowerCase()
+    if (normalizedTerms.some((term) => normalizedLine.includes(term))) {
+      matchedLineIndexes.push(index)
+    }
+  })
+  return matchedLineIndexes
+}
+
+function mergeLineRanges(ranges: Array<{ start: number; end: number }>) {
+  const sortedRanges = [...ranges].sort((left, right) => left.start - right.start)
+  const mergedRanges: Array<{ start: number; end: number }> = []
+
+  for (const range of sortedRanges) {
+    const previous = mergedRanges[mergedRanges.length - 1]
+    if (!previous || range.start > previous.end + 1) {
+      mergedRanges.push({ ...range })
+      continue
+    }
+    previous.end = Math.max(previous.end, range.end)
+  }
+
+  return mergedRanges
 }
 
 function escapeRegExp(value: string) {
