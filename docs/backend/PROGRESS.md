@@ -48,7 +48,7 @@
 ## 已知待补验证
 
 - 最新未提交变更推送后，需要回填远端 GitHub Actions 结果。
-- 保留数据升级验证不纳入当前范围；当前 compose 结论按可丢数据 fresh volume 场景成立。
+- Compose 已为 MongoDB 和 Redis 配置 named volume 持久化；保留数据升级、备份和恢复仍需在目标环境发布前单独验证。
 - 任务调度 minute 修复的实现和测试已回填；已覆盖 MongoDB 原子 claim、防重复 enqueue、PUT 后新周期生效和 `next_due_at` 推进。
 
 ## 最近验证

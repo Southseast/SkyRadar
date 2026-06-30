@@ -238,7 +238,7 @@ compose 一键启动：
 docker compose up -d
 ```
 
-compose 默认使用 MongoDB 8.2.7。SkyRadar 应用镜像由 compose 从当前源码构建，`SKYRADAR_IMAGE` 只作为本地构建产物 tag，不从远端 registry 拉取 SkyRadar 预构建镜像。Basic Auth 默认启用，未设置凭据时可从 `docker compose logs nginx` 查看随机生成的用户名和密码。后端健康检查以当前 FastAPI/ASGI 实现为准，目标环境发布前应复验 `/api/v1/health` 中各子项状态。
+compose 默认使用 MongoDB 8.2.7。SkyRadar 应用镜像由 compose 从当前源码构建，`SKYRADAR_IMAGE` 只作为本地构建产物 tag，不从远端 registry 拉取 SkyRadar 预构建镜像。MongoDB 和 Redis 使用 named volumes 保留数据；保留数据环境不要执行 `docker compose down -v`。Basic Auth 默认启用，未设置凭据时可从 `docker compose logs nginx` 查看随机生成的用户名和密码。后端健康检查以当前 FastAPI/ASGI 实现为准，目标环境发布前应复验 `/api/v1/health` 中各子项状态。
 
 ## 性能原则
 

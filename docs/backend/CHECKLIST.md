@@ -137,7 +137,8 @@
 - [ ] MongoDB 镜像如果使用 `latest`，仅作为开发探索或显式 smoke 输入；CI、发布和稳定复现必须使用固定 tag 或固定 minor 系列。
 - [ ] MongoDB 固定版本候选已记录真实版本号、宿主 Docker/Linux kernel 验证结果和回滚方式。
 - [ ] 使用 fresh volume 的验证已明确标注为非生产数据丢弃场景；生产或保留数据场景必须另有备份、恢复、FCV、索引和回滚步骤。
-- [ ] Redis 独立 service 已固定运行来源和服务端版本，并记录 `redis-server --version` 验证结果。
+- [ ] Compose named volumes 已覆盖 MongoDB `/data/db`、默认拆分 Redis `/data` 和 all-in-one Redis `/data`；发布说明明确禁止用 `docker compose down -v` 保留数据环境。
+- [ ] Redis 独立 service 已固定运行来源和服务端版本，启用 AOF 持久化，并记录 `redis-server --version` 验证结果。
 - [ ] compose smoke 已按 `IMPLEMENTATION_GUIDE.md` 标准覆盖项执行；未覆盖项已记录为待补验证。
 - [ ] `depends_on` 未被当成服务可用性的唯一依据；真实请求或消费结果已作为最终可用性判断。
 

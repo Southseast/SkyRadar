@@ -65,7 +65,9 @@ skyradar-all-in-one   # all-in-one profile，短期兼容/回滚路径
 当前 compose 基线：
 
 - MongoDB 默认镜像为 `mongo:8.2.7`，可通过 `SKYRADAR_MONGO_IMAGE` 覆盖。
-- Redis service 不再拉取独立 Redis 镜像，复用项目镜像内 Debian Trixie `redis-server`，以无持久化模式运行；实际 Redis server 版本以镜像构建和 compose smoke 输出为准。
+- MongoDB 使用 named volume 挂载 `/data/db`，默认 volume 名称为 `skyradar-mongo-data`，可通过 `SKYRADAR_MONGO_VOLUME` 覆盖。
+- Redis service 不再拉取独立 Redis 镜像，复用项目镜像内 Debian Trixie `redis-server`；默认拆分拓扑启用 AOF 并挂载 `/data` 到 `skyradar-redis-data`，可通过 `SKYRADAR_REDIS_VOLUME` 覆盖。
+- `skyradar-all-in-one` profile 的内置 Redis 同样启用 AOF，并挂载 `/data` 到 `skyradar-all-in-one-redis-data`，可通过 `SKYRADAR_ALL_IN_ONE_REDIS_VOLUME` 覆盖。
 - SkyRadar 应用镜像通过 `pull_policy: build` 在 `skyradar` 或 `skyradar-all-in-one` 服务上强制从当前源码和 `Dockerfile` 构建一次；nginx、worker、redis 角色通过 `pull_policy: never` 复用本次构建出的本地 tag，禁止从 registry 拉取 SkyRadar 预构建镜像。
 - Node 构建阶段使用 `public.ecr.aws/docker/library/node:24-trixie-slim`。
 - Python 运行阶段使用 `python:3.13-slim-trixie`，通过 `uv==0.11.19` 安装 requirements。
@@ -193,6 +195,13 @@ GitHub Actions 后端 workflow 位于 `.github/workflows/backend.yml`，包含�
 - `SKYRADAR_BASIC_AUTH_ENABLED`：是否启用 nginx Basic Auth，默认 `true`；仅可信本地开发可显式设置为 `false`。
 - `SKYRADAR_BASIC_AUTH_USERNAME`：nginx Basic Auth 用户名；默认启用且为空时由 entrypoint 随机生成。
 - `SKYRADAR_BASIC_AUTH_PASSWORD`：nginx Basic Auth 密码；默认启用且为空时由 entrypoint 随机生成。
+
+当前 compose 已读取：
+
+- `SKYRADAR_MONGO_IMAGE`：MongoDB 镜像，默认 `mongo:8.2.7`。
+- `SKYRADAR_MONGO_VOLUME`：MongoDB named volume，默认 `skyradar-mongo-data`。
+- `SKYRADAR_REDIS_VOLUME`：拆分 Redis named volume，默认 `skyradar-redis-data`。
+- `SKYRADAR_ALL_IN_ONE_REDIS_VOLUME`：all-in-one 内置 Redis named volume，默认 `skyradar-all-in-one-redis-data`。
 
 规则：
 
@@ -405,7 +414,7 @@ Compose 默认 MongoDB 镜像当前固定为 `mongo:8.2.7`。
 | PyMongo | `>=4.11,<5` | 只能使用 PyMongo 4 兼容 API；MongoDB 8 smoke 防回归 |
 | Redis client | `>=8,<9` | 与真实 Redis/Huey 消费 smoke 一起验证 |
 | MongoDB 服务端 | `mongo:8.2.7` | CI、发布和稳定复现使用固定 tag；`latest` 仅用于显式探索 |
-| Redis 服务端 | Debian Trixie `redis-server` | 由项目镜像提供，独立无持久化 service；实际版本以 compose smoke 输出为准 |
+| Redis 服务端 | Debian Trixie `redis-server` | 由项目镜像提供，默认启用 AOF 并挂载 named volume；实际版本以 compose smoke 输出为准 |
 | Huey | `>=2.5,<3` | worker import、真实 Redis broker 和后台消费必须可验证 |
 | Loguru | `>=0.7,<0.8` | 后端和 smoke 脚本统一日志入口；CLI JSON 输出必须保持 stdout 纯 JSON |
 | PyGithub | `>=2.6,<3` | 真实 GitHub/PAT smoke 覆盖认证、rate limit 和 code search |

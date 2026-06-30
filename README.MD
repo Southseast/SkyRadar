@@ -169,6 +169,9 @@ docker compose up -d
 | `SKYRADAR_HTTP_PORT` | `80` | Compose nginx 对外端口 |
 | `SKYRADAR_IMAGE` | `skyradar:latest` | Compose 本地构建产物 tag；不会作为 SkyRadar 远端镜像拉取 |
 | `SKYRADAR_MONGO_IMAGE` | `mongo:8.2.7` | Compose MongoDB 镜像 |
+| `SKYRADAR_MONGO_VOLUME` | `skyradar-mongo-data` | Compose MongoDB 持久化 volume 名称 |
+| `SKYRADAR_REDIS_VOLUME` | `skyradar-redis-data` | Compose 拆分 Redis 持久化 volume 名称 |
+| `SKYRADAR_ALL_IN_ONE_REDIS_VOLUME` | `skyradar-all-in-one-redis-data` | Compose all-in-one 内置 Redis 持久化 volume 名称 |
 | `SKYRADAR_API_DOCS_ENABLED` | `false` | 是否启用 `/api/v1/docs` |
 | `SKYRADAR_OPENAPI_PATH` | `docs/api/openapi.yaml` | OpenAPI 契约文件路径 |
 | `SKYRADAR_BASIC_AUTH_ENABLED` | `true` | 是否启用 nginx Basic Auth |
@@ -193,6 +196,28 @@ docker compose up -d
 
 ```bash
 SKYRADAR_BASIC_AUTH_ENABLED=false docker compose up -d
+```
+
+### 数据持久化
+
+Compose 默认使用 named volumes 保存运行数据：
+
+- `skyradar-mongo-data`：MongoDB 配置、扫描结果和处理状态。
+- `skyradar-redis-data`：默认拆分拓扑的 Redis/Huey broker 和缓存数据。
+- `skyradar-all-in-one-redis-data`：all-in-one 兼容模式的内置 Redis 数据。
+
+`docker compose up -d` 会在镜像重新构建或容器重建时复用这些 volume。不要在保留数据的环境执行：
+
+```bash
+docker compose down -v
+```
+
+如需迁移或复用已有 Docker volume，可在启动前覆盖 volume 名称：
+
+```bash
+SKYRADAR_MONGO_VOLUME=existing-mongo-data \
+SKYRADAR_REDIS_VOLUME=existing-redis-data \
+docker compose up -d
 ```
 
 GitHub PAT 建议使用 Fine-grained PAT：
@@ -340,6 +365,7 @@ docker build -t skyradar .
 docker run -d \
   --name skyradar \
   -p 80:80 \
+  -v skyradar-run-redis-data:/data \
   -e MONGODB_URI=mongodb://username:password@host:27017/skyradar \
   skyradar
 ```

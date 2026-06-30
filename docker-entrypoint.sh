@@ -61,6 +61,7 @@ configure_nginx_upstream() {
 }
 
 rm -f "${conf_dir}"/*.conf
+mkdir -p /data
 
 case "${role}" in
     all)

@@ -138,7 +138,7 @@
 缓解：
 
 - Web 和 Worker 统一通过 `REDIS_HOST=redis`、`REDIS_PORT=6379` 或等价配置访问 Redis。
-- Redis service 默认复用项目镜像内 Debian Trixie `redis-server`，并以无持久化模式运行，记录 `redis-server --version`，避免 CI 额外拉取 Redis 镜像触发 registry rate limit，也避免读取旧 Redis 8.6 AOF/RDB 后因格式版本不兼容启动失败。
+- Redis service 默认复用项目镜像内 Debian Trixie `redis-server`，启用 AOF 并挂载 named volume；记录 `redis-server --version`，避免 CI 额外拉取 Redis 镜像触发 registry rate limit。升级 Redis 服务端时必须验证旧 AOF/RDB 兼容性。
 - 用 compose smoke 和真实 Redis/Huey 后台消费 smoke 证明 broker、worker 和任务链路可用。
 - 保留 all-in-one profile 作为短期回滚路径，但 CI/发布默认使用拆分拓扑。
 
