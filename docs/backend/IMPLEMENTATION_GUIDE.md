@@ -19,6 +19,13 @@
 - 未运行的测试、smoke 和校验只能记录为“未运行”或“待补”，不能写成通过。
 - 写接口默认接收 JSON；参数解析保留在 FastAPI route 适配层或 schema adapter 中，不再引入 `reqparse`。
 
+## Agent 执行规则
+
+- 用户明确要求提交 commit 时，Agent 可以直接执行 `git add ...` 和 `git commit ...`。
+- 执行 commit 后，Agent 必须在回复中输出实际执行的完整 `git add ...` 和 `git commit ...` 命令，便于用户检查。
+- 提交前只暂存与当前任务相关的文件；工作区存在无关改动时不得一并提交。
+- commit message 必须符合 Conventional Commits；存在破坏性变更时必须包含 `BREAKING CHANGE`。
+
 ## 本地开发
 
 当前运行基线：
