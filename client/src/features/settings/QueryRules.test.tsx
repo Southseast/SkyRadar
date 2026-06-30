@@ -30,6 +30,7 @@ describe("QueryRules", () => {
           _id: "rule-1",
           tag: "credential",
           keyword: "password OR token",
+          search_type: "code",
           enabled: true,
           last: 1_780_000_000,
           api_total: 42,
@@ -41,6 +42,7 @@ describe("QueryRules", () => {
           _id: "rule-1",
           tag: "credential",
           keyword: "password OR token",
+          search_type: "repositories",
           enabled: false,
         },
       ])
@@ -49,6 +51,7 @@ describe("QueryRules", () => {
           _id: "rule-1",
           tag: "credential-renamed",
           keyword: "secret",
+          search_type: "repositories",
           enabled: false,
         },
       ])
@@ -75,6 +78,7 @@ describe("QueryRules", () => {
         {
           tag: "credential",
           keyword: "password OR token",
+          search_type: "code",
           enabled: false,
         },
         "credential",
@@ -93,6 +97,7 @@ describe("QueryRules", () => {
         {
           tag: "credential-renamed",
           keyword: "secret",
+          search_type: "repositories",
           enabled: false,
         },
         "credential",
@@ -106,6 +111,7 @@ describe("QueryRules", () => {
         _id: "rule-1",
         tag: "credential-renamed",
         keyword: "secret",
+        search_type: "repositories",
         enabled: false,
       })
     })
@@ -118,6 +124,7 @@ describe("QueryRules", () => {
         _id: "rule-2",
         tag: "secret",
         keyword: "api_key",
+        search_type: "code",
         enabled: true,
       },
     ])
@@ -142,6 +149,7 @@ describe("QueryRules", () => {
         {
           tag: "secret",
           keyword: "api_key",
+          search_type: "code",
           enabled: true,
         },
         undefined,

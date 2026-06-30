@@ -56,6 +56,7 @@ describe("LeakageDetailPage", () => {
         _id: "rule-1",
         keyword: '"token"',
         tag: "credential",
+        search_type: "code",
         enabled: true,
       },
     ])

@@ -22,6 +22,10 @@ def search_code(client, keyword):
     return client.search_code(query=keyword, sort="indexed", order="desc")
 
 
+def search_repositories(client, keyword):
+    return client.search_repositories(query=keyword, sort="updated", order="desc")
+
+
 def search_rate_limit(client):
     rate_limit = client.get_rate_limit()
     search = getattr(rate_limit, "search", None) or rate_limit.resources.search

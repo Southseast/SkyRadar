@@ -111,10 +111,13 @@ export interface GithubAccount {
   addat?: number
 }
 
+export type QueryRuleSearchType = "code" | "repositories"
+
 export interface QueryRule {
   _id: string
   keyword: string
   tag: string
+  search_type: QueryRuleSearchType
   enabled: boolean
   last?: number
   status?: number

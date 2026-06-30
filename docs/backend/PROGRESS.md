@@ -21,6 +21,7 @@
 - OpenAPI 契约源为 `docs/api/openapi.yaml`；契约已收敛到最终 `/api/v1/*` RESTful 形态；`GET /api/v1/openapi.json` 和 `GET /api/v1/docs` 默认关闭，`SKYRADAR_API_DOCS_ENABLED=true` 时启用。
 - 业务代码已按 domain/core/integrations/workers 边界组织，测试目录已按 domain/core/workers/harness 边界内聚。
 - 任务调度 minute 语义已在后端文档中收敛为 Huey 固定 tick + MongoDB `minute/next_due_at` 控制实际周期；`PUT /api/v1/task-schedules/current` 后新周期不依赖 SIGHUP 动态改 crontab。
+- 查询规则支持 `code` 和 `repositories` 两类 GitHub 检索，旧规则缺省按 `code` 兼容。
 
 ## 已完成
 

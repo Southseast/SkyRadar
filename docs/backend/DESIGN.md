@@ -325,7 +325,7 @@ server/
 设置资源：
 
 - GitHub 账号使用 `/api/v1/github-accounts` 和 `/api/v1/github-accounts/{username}`；响应不得包含原始 token。
-- 查询规则使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`。
+- 查询规则使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`；`search_type` 支持 `code` 和 `repositories`，缺省或旧数据按 `code` 处理。
 - 任务调度使用 `/api/v1/task-schedules/current`；`minute` 更新写入 MongoDB task setting 后由固定 tick worker 读取，实际调度周期由 `minute` 和 `next_due_at` 决定，不通过 SIGHUP 动态改 Huey crontab。
 - 黑名单使用 `/api/v1/blacklist-items` 和 `/api/v1/blacklist-items/{text}`。
 - 邮件通知接收人使用 `/api/v1/notification-recipients` 和 `/api/v1/notification-recipients/{mail}`。

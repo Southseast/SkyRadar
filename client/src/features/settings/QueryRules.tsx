@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -15,12 +16,31 @@ import { SettingsBox, SettingsBoxRow, SettingsRowTitle } from "@/features/settin
 import { formatCount, formatRelativeTime } from "@/features/results/format"
 import { getErrorMessage } from "@/lib/api/client"
 import { deleteQueryRule, fetchQueryRules, saveQueryRule } from "@/lib/api/settings"
-import type { QueryRule } from "@/types/api"
+import type { QueryRule, QueryRuleSearchType } from "@/types/api"
 
-const emptyForm = {
+interface QueryRuleForm {
+  tag: string
+  keyword: string
+  search_type: QueryRuleSearchType
+  enabled: boolean
+}
+
+const emptyForm: QueryRuleForm = {
   tag: "",
   keyword: "",
+  search_type: "code",
   enabled: true,
+}
+
+const searchTypeLabel = {
+  code: "Code",
+  repositories: "Repositories",
+} as const
+
+function githubSearchUrl(rule: QueryRule) {
+  const type = rule.search_type === "repositories" ? "repositories" : "Code"
+  const sort = rule.search_type === "repositories" ? "updated" : "indexed"
+  return `https://github.com/search?o=desc&q=${encodeURIComponent(rule.keyword)}&ref=searchresults&s=${sort}&type=${type}&utf8=%E2%9C%93`
 }
 
 export function QueryRules() {
@@ -77,6 +97,7 @@ export function QueryRules() {
       const response = await saveQueryRule({
         tag: form.tag.trim(),
         keyword: form.keyword.trim(),
+        search_type: form.search_type,
         enabled: form.enabled,
       }, editingTag ?? undefined)
       setRules(await fetchQueryRules())
@@ -100,6 +121,7 @@ export function QueryRules() {
       const response = await saveQueryRule({
         tag: rule.tag,
         keyword: rule.keyword,
+        search_type: rule.search_type,
         enabled,
       }, rule.tag)
       setRules(await fetchQueryRules())
@@ -137,6 +159,7 @@ export function QueryRules() {
     setForm({
       tag: rule.tag,
       keyword: rule.keyword,
+      search_type: rule.search_type,
       enabled: rule.enabled,
     })
   }
@@ -161,7 +184,7 @@ export function QueryRules() {
       <SettingsBox>
         <SettingsBoxRow className="space-y-3">
           <SettingsRowTitle icon={Search}>{editingId ? "编辑查询规则" : "添加查询规则"}</SettingsRowTitle>
-          <form className="grid gap-3 xl:grid-cols-[220px_1fr_auto_auto] xl:items-end" onSubmit={handleSubmit}>
+          <form className="grid gap-3 xl:grid-cols-[220px_170px_1fr_auto_auto] xl:items-end" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
               <Label htmlFor="query-rule-tag">名称</Label>
               <Input
@@ -170,6 +193,23 @@ export function QueryRules() {
                 onChange={(event) => setForm((current) => ({ ...current, tag: event.target.value }))}
                 placeholder="例如 credential"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="query-rule-search-type">检索类型</Label>
+              <Select
+                value={form.search_type}
+                onValueChange={(search_type) =>
+                  setForm((current) => ({ ...current, search_type: search_type === "repositories" ? "repositories" : "code" }))
+                }
+              >
+                <SelectTrigger id="query-rule-search-type" className="w-full rounded-md">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="code">Code</SelectItem>
+                  <SelectItem value="repositories">Repositories</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="query-rule-keyword">关键字</Label>
@@ -212,6 +252,7 @@ export function QueryRules() {
                 <TableHeader>
                   <TableRow className="bg-surface-subtle">
                     <TableHead className="min-w-[150px]">名称</TableHead>
+                    <TableHead className="min-w-[130px]">类型</TableHead>
                     <TableHead className="min-w-[280px]">关键字</TableHead>
                     <TableHead className="min-w-[130px]">最后抓取</TableHead>
                     <TableHead className="min-w-[110px]">总数</TableHead>
@@ -231,9 +272,14 @@ export function QueryRules() {
                         </Link>
                       </TableCell>
                       <TableCell>
+                        <Badge variant="secondary" className="rounded">
+                          {searchTypeLabel[rule.search_type]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         <a
                           className="inline-flex max-w-[420px] items-center gap-1 text-info hover:underline"
-                          href={`https://github.com/search?o=desc&q=${encodeURIComponent(rule.keyword)}&ref=searchresults&s=indexed&type=Code&utf8=%E2%9C%93`}
+                          href={githubSearchUrl(rule)}
                           target="_blank"
                           rel="noreferrer noopener"
                         >
@@ -281,7 +327,7 @@ export function QueryRules() {
           ) : (
             <div className="rounded border border-dashed p-6 text-center">
               <p className="text-sm font-medium">暂无查询规则</p>
-              <p className="mt-1 text-xs text-muted-foreground">添加规则后，扫描任务会按关键字查询 GitHub 代码。</p>
+              <p className="mt-1 text-xs text-muted-foreground">添加规则后，扫描任务会按关键字查询 GitHub。</p>
             </div>
           )}
         </SettingsBoxRow>

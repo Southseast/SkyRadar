@@ -6,6 +6,7 @@ import type {
   GithubAccount,
   NoticeMail,
   QueryRule,
+  QueryRuleSearchType,
   SmtpSetting,
   TaskSetting,
   WebhookSetting,
@@ -42,19 +43,20 @@ function sanitizeGithubAccounts(accounts: unknown): GithubAccount[] {
 export interface QueryRulePayload {
   tag: string
   keyword: string
+  search_type: QueryRuleSearchType
   enabled: boolean
 }
 
 export async function fetchQueryRules() {
   const response = await apiClient.get<ApiResponse<unknown>>(endpoints.searchRules)
-  return normalizeList<QueryRule>(getResponseData(response.data))
+  return normalizeQueryRules(getResponseData(response.data))
 }
 
 export async function saveQueryRule(payload: QueryRulePayload, existingTag?: string) {
   const response = existingTag
     ? await apiClient.put<ApiResponse<unknown>>(endpoints.searchRule(existingTag), payload)
     : await apiClient.post<ApiResponse<unknown>>(endpoints.searchRules, payload)
-  return toMutationResult(normalizeList<QueryRule>(getResponseData(response.data)), "保存成功")
+  return toMutationResult(normalizeQueryRules(getResponseData(response.data)), "保存成功")
 }
 
 export async function deleteQueryRule(rule: Pick<QueryRule, "tag">) {
@@ -162,4 +164,15 @@ function sanitizeWebhookSettings(settings: unknown): WebhookSetting[] {
 
 function normalizeList<T>(result: unknown): T[] {
   return Array.isArray(result) ? result : []
+}
+
+function normalizeQueryRules(result: unknown): QueryRule[] {
+  return normalizeList<QueryRule>(result).map((rule) => ({
+    ...rule,
+    search_type: normalizeSearchType(rule.search_type),
+  }))
+}
+
+function normalizeSearchType(value: unknown): QueryRuleSearchType {
+  return value === "repositories" ? "repositories" : "code"
 }

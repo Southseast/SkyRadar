@@ -87,12 +87,14 @@ async def post_search_rule(request: Request):
     payload = QueryPayload(
         keyword=params.get("keyword"),
         tag=params.get("tag"),
+        search_type=params.get("search_type"),
         enabled=as_bool(params, "enabled", True),
     )
     return await _run_service_response(
         settings_service.create_search_rule,
         payload.keyword,
         payload.tag,
+        search_type=payload.search_type,
         enabled=payload.enabled,
         status_code=201,
     )
@@ -104,12 +106,14 @@ async def put_search_rule(tag: str, request: Request):
     payload = QueryPayload(
         keyword=params.get("keyword"),
         tag=tag,
+        search_type=params.get("search_type"),
         enabled=as_bool(params, "enabled", True),
     )
     return await _run_service_response(
         settings_service.put_search_rule,
         payload.tag,
         payload.keyword,
+        search_type=payload.search_type,
         enabled=payload.enabled,
     )
 

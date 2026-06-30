@@ -5,6 +5,7 @@
 # @Description : Implements GitHub search service logic.
 
 import datetime
+import hashlib
 import os
 import time
 
@@ -12,6 +13,10 @@ from api.github_search import assets as asset_service
 from api.github_search import repository as worker_repository
 from core.logging import logger
 from integrations import github as github_integration
+
+
+SEARCH_TYPE_CODE = "code"
+SEARCH_TYPE_REPOSITORIES = "repositories"
 
 
 def initialize_search_schedule(pid):
@@ -50,14 +55,104 @@ def _retry_with_next_account(query, page, retry):
         retry(query, page, next_account)
 
 
+def _query_search_type(query):
+    search_type = str(query.get("search_type") or SEARCH_TYPE_CODE).strip().lower()
+    if search_type in {"repo", "repository"}:
+        return SEARCH_TYPE_REPOSITORIES
+    if search_type == SEARCH_TYPE_REPOSITORIES:
+        return SEARCH_TYPE_REPOSITORIES
+    return SEARCH_TYPE_CODE
+
+
+def _search_github(github_client, query):
+    if _query_search_type(query) == SEARCH_TYPE_REPOSITORIES:
+        return github_integration.search_repositories(github_client, query.get("keyword"))
+    return github_integration.search_code(github_client, query.get("keyword"))
+
+
+def _as_datetime(value):
+    if isinstance(value, datetime.datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            pass
+    return datetime.datetime.utcnow()
+
+
+def _repository_leakage(query, repo):
+    owner = getattr(repo, "owner", None)
+    full_name = getattr(repo, "full_name", None) or getattr(repo, "name", "")
+    repo_id = getattr(repo, "id", None) or full_name
+    detected_at = _as_datetime(
+        getattr(repo, "updated_at", None)
+        or getattr(repo, "pushed_at", None)
+        or getattr(repo, "created_at", None)
+    )
+    return {
+        "_id": hashlib.md5("{}:repositories:{}".format(query.get("tag"), repo_id).encode("utf-8")).hexdigest(),
+        "link": getattr(repo, "html_url", ""),
+        "project": full_name,
+        "project_url": getattr(repo, "html_url", ""),
+        "language": getattr(repo, "language", None),
+        "username": getattr(owner, "login", ""),
+        "avatar_url": getattr(owner, "avatar_url", ""),
+        "filepath": full_name,
+        "filename": getattr(repo, "name", full_name),
+        "security": 0,
+        "ignore": 0,
+        "tag": query.get("tag"),
+        "search_type": SEARCH_TYPE_REPOSITORIES,
+        "code": "",
+        "affect": [],
+        "datetime": detected_at,
+        "timestamp": detected_at.timestamp(),
+    }
+
+
+def _is_blacklisted(link):
+    link = str(link or "")
+    for blacklist in worker_repository.iter_blacklist():
+        blacklist_text = str(blacklist.get("text") or "")
+        if blacklist_text and blacklist_text.lower() in link.lower():
+            logger.warning("{} 包含白名单中的 {}".format(link, blacklist.get("text")))
+            return True
+    return False
+
+
+def _append_repository_notices(leakage, mail_notice_list, webhook_notice_list):
+    if worker_repository.result_exists({"project": leakage.get("project"), "ignore": 1}):
+        return False
+    if not worker_repository.result_exists({"project": leakage.get("project"), "security": 0}):
+        mail_notice_list.append(
+            "更新时间:{} 地址: <a href={}>{}</a>".format(
+                leakage.get("datetime"), leakage.get("link"), leakage.get("project")
+            )
+        )
+        webhook_notice_list.append(
+            "[{}]({}) 更新于 {}".format(
+                leakage.get("project"),
+                leakage.get("link"),
+                leakage.get("datetime"),
+            )
+        )
+    return True
+
+
 def search_github_code(query, page, github_or_account, github_username=None, *, asset_extractor=None, retry):
     asset_extractor = asset_extractor or asset_service.default_extractor()
     mail_notice_list = []
     webhook_notice_list = []
-    logger.info("开始抓取: tag is {} keyword is {}, page is {}".format(query.get("tag"), query.get("keyword"), page + 1))
+    search_type = _query_search_type(query)
+    logger.info(
+        "开始抓取: tag is {} keyword is {}, type is {}, page is {}".format(
+            query.get("tag"), query.get("keyword"), search_type, page + 1
+        )
+    )
     try:
         github_client, github_username = _resolve_github(github_or_account, github_username)
-        repos = github_integration.search_code(github_client, query.get("keyword"))
+        repos = _search_github(github_client, query)
         rate = github_integration.search_rate_limit(github_client)
         worker_repository.update_github_rate_remaining(github_username, rate["remaining"])
     except Exception as error:
@@ -70,6 +165,22 @@ def search_github_code(query, page, github_or_account, github_username=None, *, 
     try:
         for repo in repos.get_page(page):
             worker_repository.touch_task(os.getpid(), int(time.time()))
+            if search_type == SEARCH_TYPE_REPOSITORIES:
+                leakage = _repository_leakage(query, repo)
+                if worker_repository.result_exists({"_id": leakage.get("_id")}):
+                    continue
+                if _is_blacklisted(leakage.get("link", "")):
+                    continue
+                if not _append_repository_notices(leakage, mail_notice_list, webhook_notice_list):
+                    continue
+                try:
+                    worker_repository.insert_result(leakage)
+                    logger.info(leakage.get("project"))
+                except worker_repository.DuplicateKeyError:
+                    logger.info("已存在")
+                logger.info("抓取仓库：{} {}".format(query.get("tag"), leakage.get("link")))
+                continue
+
             if worker_repository.result_exists({"_id": repo.sha}):
                 continue
             try:
@@ -89,6 +200,7 @@ def search_github_code(query, page, github_or_account, github_username=None, *, 
                 "security": 0,
                 "ignore": 0,
                 "tag": query.get("tag"),
+                "search_type": SEARCH_TYPE_CODE,
                 "code": code,
             }
             try:
@@ -102,12 +214,7 @@ def search_github_code(query, page, github_or_account, github_username=None, *, 
             last_modified = datetime.datetime.strptime(repo.last_modified, "%a, %d %b %Y %H:%M:%S %Z")
             leakage["datetime"] = last_modified
             leakage["timestamp"] = last_modified.timestamp()
-            in_blacklist = False
-            for blacklist in worker_repository.iter_blacklist():
-                if blacklist.get("text").lower() in leakage.get("link").lower():
-                    logger.warning("{} 包含白名单中的 {}".format(leakage.get("link"), blacklist.get("text")))
-                    in_blacklist = True
-            if in_blacklist:
+            if _is_blacklisted(leakage.get("link")):
                 continue
             if worker_repository.result_exists({"project": leakage.get("project"), "ignore": 1}):
                 continue
@@ -138,7 +245,11 @@ def search_github_code(query, page, github_or_account, github_username=None, *, 
         logger.error("抓取: tag is {} keyword is {}, page is {} 失败".format(query.get("tag"), query.get("keyword"), page + 1))
         return {"mail": [], "webhook": []}
 
-    logger.info("抓取: tag is {} keyword is {}, page is {} 成功".format(query.get("tag"), query.get("keyword"), page + 1))
+    logger.info(
+        "抓取: tag is {} keyword is {}, type is {}, page is {} 成功".format(
+            query.get("tag"), query.get("keyword"), search_type, page + 1
+        )
+    )
     worker_repository.update_query_success(query.get("tag"), page, repos.totalCount, time.time())
     return {"mail": mail_notice_list, "webhook": webhook_notice_list}
 

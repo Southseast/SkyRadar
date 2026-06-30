@@ -32,6 +32,19 @@ def _fake_repo(sha, *, remaining="10", project="org/repo", filename="secret.py")
     )
 
 
+def _fake_repository_result(*, repo_id=1001, project="org/repo", name="repo"):
+    fake_owner = SimpleNamespace(login="alice", avatar_url="https://example.com/avatar.png")
+    return SimpleNamespace(
+        id=repo_id,
+        full_name=project,
+        name=name,
+        html_url="https://github.com/{}".format(project),
+        language="Python",
+        owner=fake_owner,
+        updated_at=worker_service.datetime.datetime(2024, 1, 2, 3, 4, 5),
+    )
+
+
 class _ScheduleRepository:
     def __init__(self, *, now, setting=None, claim_success=True):
         self.now = now
@@ -362,6 +375,59 @@ def test_search_paged_results_insert_multiple_repos_and_mark_query_success(monke
     assert captured["query_success"] == [{"tag": "github-token", "page": 1, "api_total": 7}]
     assert len(notices["mail"]) == 2
     assert notices["webhook"][1].startswith("[org/repo/two.py]")
+
+
+def test_search_repositories_inserts_repository_results(monkeypatch):
+    captured = {"repository_search": [], "code_search": [], "inserted": [], "query_success": []}
+    fake_repos = SimpleNamespace(
+        totalCount=5,
+        get_page=lambda page: [_fake_repository_result(project="org/repo", name="repo")],
+    )
+
+    monkeypatch.setattr(worker_service.worker_repository, "touch_task", lambda pid, now: None)
+    monkeypatch.setattr(worker_service.github_integration, "create_client", lambda username, password: object())
+    monkeypatch.setattr(
+        worker_service.github_integration,
+        "search_repositories",
+        lambda client, keyword: captured["repository_search"].append(keyword) or fake_repos,
+    )
+    monkeypatch.setattr(
+        worker_service.github_integration,
+        "search_code",
+        lambda client, keyword: captured["code_search"].append(keyword),
+    )
+    monkeypatch.setattr(worker_service.github_integration, "search_rate_limit", lambda client: {"remaining": 42, "limit": 100})
+    monkeypatch.setattr(worker_service.worker_repository, "update_github_rate_remaining", lambda username, remaining: None)
+    monkeypatch.setattr(worker_service.worker_repository, "iter_blacklist", lambda: [])
+    monkeypatch.setattr(worker_service.worker_repository, "result_exists", lambda filters: False)
+    monkeypatch.setattr(
+        worker_service.worker_repository,
+        "insert_result",
+        lambda document: captured["inserted"].append(document),
+    )
+    monkeypatch.setattr(
+        worker_service.worker_repository,
+        "update_query_success",
+        lambda tag, page, api_total, now: captured["query_success"].append(
+            {"tag": tag, "page": page, "api_total": api_total}
+        ),
+    )
+
+    notices = worker_service.search_github_code(
+        {"tag": "github-token", "keyword": "password", "search_type": "repositories"},
+        0,
+        {"username": "octocat", "password": "secret"},
+        retry=lambda *args: None,
+    )
+
+    assert captured["repository_search"] == ["password"]
+    assert captured["code_search"] == []
+    assert captured["inserted"][0]["project"] == "org/repo"
+    assert captured["inserted"][0]["filename"] == "repo"
+    assert captured["inserted"][0]["search_type"] == "repositories"
+    assert captured["inserted"][0]["code"] == ""
+    assert captured["query_success"] == [{"tag": "github-token", "page": 0, "api_total": 5}]
+    assert notices["webhook"] == ["[org/repo](https://github.com/org/repo) 更新于 2024-01-02 03:04:05"]
 
 
 def test_search_stops_on_repo_rate_limit_zero_and_keeps_existing_notices(monkeypatch):

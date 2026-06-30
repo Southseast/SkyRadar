@@ -20,6 +20,7 @@ class GithubAccountPayload(BaseModel):
 class QueryPayload(BaseModel):
     keyword: str | None = None
     tag: str | None = None
+    search_type: str | None = None
     enabled: bool = True
 
 

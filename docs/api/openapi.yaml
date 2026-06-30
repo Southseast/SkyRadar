@@ -370,6 +370,7 @@ paths:
             example:
               keyword: '"ghp_" password'
               tag: github-token
+              search_type: code
               enabled: true
       responses:
         "201":
@@ -1098,6 +1099,7 @@ components:
       required:
         - _id
         - keyword
+        - search_type
         - tag
         - enabled
       properties:
@@ -1105,6 +1107,12 @@ components:
           type: string
         keyword:
           type: string
+        search_type:
+          type: string
+          enum:
+            - code
+            - repositories
+          default: code
         tag:
           type: string
         enabled:
@@ -1117,6 +1125,12 @@ components:
       properties:
         keyword:
           type: string
+        search_type:
+          type: string
+          enum:
+            - code
+            - repositories
+          default: code
         tag:
           type: string
         enabled:

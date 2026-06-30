@@ -17,6 +17,9 @@ from integrations import github as github_integration
 
 WEBHOOK_PROVIDERS = {"dingtalk", "feishu"}
 TASK_SETTING_INTERNAL_FIELDS = {"next_due_at", "last_scheduled_at"}
+SEARCH_TYPE_CODE = "code"
+SEARCH_TYPE_REPOSITORIES = "repositories"
+SEARCH_TYPES = {SEARCH_TYPE_CODE, SEARCH_TYPE_REPOSITORIES}
 
 
 class SettingsServiceError(Exception):
@@ -41,6 +44,26 @@ def _mask_secret(value):
     if len(value) <= 4:
         return "****"
     return f"{value[:2]}****{value[-2:]}"
+
+
+def normalize_search_type(value):
+    if value is None or not str(value).strip():
+        return SEARCH_TYPE_CODE
+    normalized = str(value).strip().lower()
+    aliases = {
+        "repo": SEARCH_TYPE_REPOSITORIES,
+        "repository": SEARCH_TYPE_REPOSITORIES,
+    }
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in SEARCH_TYPES:
+        raise SettingsServiceError(400, "search_type must be code or repositories")
+    return normalized
+
+
+def public_search_rule(rule):
+    public_rule = dict(rule)
+    public_rule["search_type"] = normalize_search_type(public_rule.get("search_type"))
+    return public_rule
 
 
 def public_webhook_setting(item):
@@ -112,26 +135,28 @@ def delete_github_account(username):
 
 
 def get_search_rules():
-    return setting_repository.list_queries()
+    return [public_search_rule(rule) for rule in setting_repository.list_queries()]
 
 
-def create_search_rule(keyword, tag, enabled=True):
+def create_search_rule(keyword, tag, search_type=None, enabled=True):
     keyword = _require_text(keyword, "keyword")
     tag = _require_text(tag, "tag")
+    search_type = normalize_search_type(search_type)
     if setting_repository.query_exists(tag):
         raise SettingsServiceError(409, "search rule tag already exists")
-    document = {"keyword": keyword, "tag": tag, "enabled": enabled}
+    document = {"keyword": keyword, "tag": tag, "search_type": search_type, "enabled": enabled}
     document["_id"] = hashlib.md5("".join([str(value) for value in document.values()]).encode("utf-8")).hexdigest()
     setting_repository.insert_query(document)
     return document
 
 
-def put_search_rule(tag, keyword, enabled=True):
+def put_search_rule(tag, keyword, search_type=None, enabled=True):
     tag = _require_text(tag, "tag")
     keyword = _require_text(keyword, "keyword")
+    search_type = normalize_search_type(search_type)
     if not setting_repository.query_exists(tag):
         raise SettingsServiceError(404, "search rule was not found")
-    values = {"keyword": keyword, "tag": tag, "enabled": enabled}
+    values = {"keyword": keyword, "tag": tag, "search_type": search_type, "enabled": enabled}
     setting_repository.update_query(tag, values)
     return values
 

@@ -140,7 +140,7 @@ def test_search_rules_get_sorts_enabled_desc(client, monkeypatch):
     cursor = FakeCursor(
         [
             {"_id": "query-1", "keyword": "token", "tag": "token", "enabled": True},
-            {"_id": "query-2", "keyword": "key", "tag": "key", "enabled": False},
+            {"_id": "query-2", "keyword": "key", "tag": "key", "search_type": "repositories", "enabled": False},
         ]
     )
 
@@ -156,8 +156,8 @@ def test_search_rules_get_sorts_enabled_desc(client, monkeypatch):
     assert response.status_code == 200
     assert response.get_json() == {
         "data": [
-            {"_id": "query-1", "keyword": "token", "tag": "token", "enabled": True},
-            {"_id": "query-2", "keyword": "key", "tag": "key", "enabled": False},
+            {"_id": "query-1", "keyword": "token", "tag": "token", "search_type": "code", "enabled": True},
+            {"_id": "query-2", "keyword": "key", "tag": "key", "search_type": "repositories", "enabled": False},
         ]
     }
     assert captured["filters"] == {}
@@ -181,7 +181,7 @@ def test_search_rule_post_inserts_new_rule(client, monkeypatch):
 
     response = client.post(
         "/api/v1/search-rules",
-        json={"keyword": "github token", "tag": "github-token", "enabled": True},
+        json={"keyword": "github token", "tag": "github-token", "search_type": "repositories", "enabled": True},
     )
 
     body = response.get_json()
@@ -189,6 +189,7 @@ def test_search_rule_post_inserts_new_rule(client, monkeypatch):
     assert body["data"] == captured["inserted"]
     assert body["data"]["keyword"] == "github token"
     assert body["data"]["tag"] == "github-token"
+    assert body["data"]["search_type"] == "repositories"
     assert body["data"]["enabled"] is True
     assert "_id" in body["data"]
     assert captured["count_filters"] == {"tag": "github-token"}
@@ -216,6 +217,7 @@ def test_search_rule_post_accepts_form_urlencoded(client, monkeypatch):
 
     assert response.status_code == 201
     assert response.get_json()["data"]["tag"] == "github-token-form"
+    assert response.get_json()["data"]["search_type"] == "code"
     assert response.get_json()["data"]["enabled"] is True
     assert captured["count_filters"] == {"tag": "github-token-form"}
 
@@ -262,17 +264,41 @@ def test_search_rule_put_updates_existing_rule(client, monkeypatch):
 
     response = client.put(
         "/api/v1/search-rules/github-token",
-        json={"keyword": "changed token", "enabled": False},
+        json={"keyword": "changed token", "search_type": "repositories", "enabled": False},
     )
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "data": {"keyword": "changed token", "tag": "github-token", "enabled": False}
+        "data": {"keyword": "changed token", "tag": "github-token", "search_type": "repositories", "enabled": False}
     }
     assert captured["count_filters"] == {"tag": "github-token"}
     assert captured["update_filters"] == {"tag": "github-token"}
     assert captured["update"] == {
-        "$set": {"keyword": "changed token", "tag": "github-token", "enabled": False}
+        "$set": {"keyword": "changed token", "tag": "github-token", "search_type": "repositories", "enabled": False}
+    }
+
+
+def test_search_rule_rejects_invalid_search_type(client, monkeypatch):
+    from api.settings import repository as setting
+
+    class FakeQueryCollection:
+        def count_documents(self, filters):
+            return 0
+
+        def insert_one(self, document):
+            raise AssertionError("invalid search_type must not be inserted")
+
+    monkeypatch.setattr(setting, "query_col", FakeQueryCollection())
+
+    response = client.post(
+        "/api/v1/search-rules",
+        json={"keyword": "github token", "tag": "github-token", "search_type": "issues", "enabled": True},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "settings_error",
+        "message": "search_type must be code or repositories",
     }
 
 

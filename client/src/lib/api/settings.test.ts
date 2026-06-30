@@ -113,12 +113,14 @@ describe("settings api adapter", () => {
     await saveQueryRule({
       tag: "credential",
       keyword: "password OR token",
+      search_type: "repositories",
       enabled: true,
     })
 
     expect(postSpy).toHaveBeenCalledWith("/api/v1/search-rules", {
       tag: "credential",
       keyword: "password OR token",
+      search_type: "repositories",
       enabled: true,
     })
   })
@@ -132,6 +134,7 @@ describe("settings api adapter", () => {
       {
         tag: "credential-renamed",
         keyword: "secret",
+        search_type: "code",
         enabled: false,
       },
       "credential/token",
@@ -140,8 +143,21 @@ describe("settings api adapter", () => {
     expect(putSpy).toHaveBeenCalledWith("/api/v1/search-rules/credential%2Ftoken", {
       tag: "credential-renamed",
       keyword: "secret",
+      search_type: "code",
       enabled: false,
     })
+  })
+
+  it("normalizes missing search rule type to code", async () => {
+    vi.spyOn(apiClient, "get").mockResolvedValue({
+      data: {
+        data: [{ _id: "rule-1", tag: "credential", keyword: "token", enabled: true }],
+      },
+    } as AxiosResponse)
+
+    await expect(fetchQueryRules()).resolves.toEqual([
+      { _id: "rule-1", tag: "credential", keyword: "token", search_type: "code", enabled: true },
+    ])
   })
 
   it("deletes Webhook settings by webhook_id when available", async () => {
