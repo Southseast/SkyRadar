@@ -134,6 +134,7 @@ def test_compose_log_scan_patterns_detect_failures_and_secrets():
             "worker-1 | huey running",
             "worker-1 | Traceback (most recent call last):",
             "skyradar-1 | token=abc123",
+            "nginx-1 |   SKYRADAR_BASIC_AUTH_PASSWORD=random-login-password",
         ]
     )
 
@@ -144,6 +145,7 @@ def test_compose_log_scan_patterns_detect_failures_and_secrets():
     secrets = backend_compose_smoke.matching_lines(
         logs,
         backend_compose_smoke.SECRET_PATTERNS,
+        ignore_patterns=backend_compose_smoke.ALLOWED_SECRET_LOG_PATTERNS,
     )
 
     assert failures == ["worker-1 | Traceback (most recent call last):"]

@@ -155,15 +155,16 @@ SkyRadar 当前主要是单人或小范围部署工具，访问面由 nginx 暴�
 
 决策：
 
-短期采用 nginx Basic Auth 作为统一访问保护。Basic Auth 默认启用；必须同时配置 `SKYRADAR_BASIC_AUTH_USERNAME` 和 `SKYRADAR_BASIC_AUTH_PASSWORD`。仅可信本地开发可显式设置 `SKYRADAR_BASIC_AUTH_ENABLED=false` 关闭。Basic Auth 覆盖前端页面、静态资源和 `/api` 反向代理入口，不新增 `/api/auth/*`。
+短期采用 nginx Basic Auth 作为统一访问保护。Basic Auth 默认启用；未配置 `SKYRADAR_BASIC_AUTH_USERNAME` 或 `SKYRADAR_BASIC_AUTH_PASSWORD` 时由 entrypoint 随机生成缺失项，并打印到 nginx/all-in-one 容器日志用于首次登录。仅可信本地开发可显式设置 `SKYRADAR_BASIC_AUTH_ENABLED=false` 关闭。Basic Auth 覆盖前端页面、静态资源和 `/api` 反向代理入口，不新增 `/api/auth/*`。
 
 影响：
 
 - 不引入用户表、服务端 session、登录页或前端登录态。
 - 未通过 Basic Auth 的请求由 nginx 返回 HTTP `401`，不会进入 FastAPI。
-- 默认启用时，未配置或只配置部分 Basic Auth 凭据会导致 nginx/all-in-one 角色启动失败。
+- 默认启用时，未配置或只配置部分 Basic Auth 凭据不会阻止启动；缺失项会随机生成，容器重建后可能变化。
 - 显式关闭 Basic Auth 仅适用于可信本地开发。
 - Basic Auth 必须配合 HTTPS、VPN、内网或可信反向代理使用。
+- 生产环境建议显式设置固定 Basic Auth 凭据，并保护 Docker 日志访问权限。
 - 如果未来需要多用户、审计、权限或公网长期暴露，再新增应用层用户体系 ADR。
 
 ## ADR-0009：compose 默认使用拆分拓扑

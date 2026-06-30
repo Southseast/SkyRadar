@@ -47,6 +47,9 @@ SECRET_PATTERNS = (
     re.compile(r"(?i)\b(password|passwd|token|secret|api[_-]?key)\s*[:=]\s*[^\\s'\",}]+"),
     re.compile(r"mongodb://[^\\s/@:]+:[^\\s/@]+@"),
 )
+ALLOWED_SECRET_LOG_PATTERNS = (
+    re.compile(r"\bSKYRADAR_BASIC_AUTH_PASSWORD="),
+)
 
 
 class SmokeFailure(Exception):
@@ -582,9 +585,11 @@ def compose_logs(args):
     return result.stdout
 
 
-def matching_lines(text, patterns, limit=20):
+def matching_lines(text, patterns, limit=20, ignore_patterns=()):
     matches = []
     for line in text.splitlines():
+        if any(pattern.search(line) for pattern in ignore_patterns):
+            continue
         if any(pattern.search(line) for pattern in patterns):
             matches.append(line)
             if len(matches) >= limit:
@@ -595,7 +600,11 @@ def matching_lines(text, patterns, limit=20):
 def check_logs(args):
     logs = compose_logs(args)
     failure_matches = matching_lines(logs, LOG_FAILURE_PATTERNS)
-    secret_matches = matching_lines(logs, SECRET_PATTERNS)
+    secret_matches = matching_lines(
+        logs,
+        SECRET_PATTERNS,
+        ignore_patterns=ALLOWED_SECRET_LOG_PATTERNS,
+    )
     if failure_matches or secret_matches:
         raise SmokeFailure(
             "compose logs scan failed: failures=%r secrets=%r"

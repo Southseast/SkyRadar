@@ -21,6 +21,26 @@ x-skyradar-environment: &skyradar-environment
   REDIS_HOST: redis
   REDIS_PORT: "6379"
 
+x-skyradar-nginx-healthcheck-test: &skyradar-nginx-healthcheck-test
+  - CMD-SHELL
+  - >
+    case "$${SKYRADAR_BASIC_AUTH_ENABLED:-true}" in
+      0|false|False|FALSE|no|No|NO|off|Off|OFF)
+        curl -fsS http://127.0.0.1/api/v1/health >/dev/null
+        ;;
+      *)
+        credentials=/etc/nginx/.skyradar_basic_auth_credentials;
+        username="$${SKYRADAR_BASIC_AUTH_USERNAME:-}";
+        password="$${SKYRADAR_BASIC_AUTH_PASSWORD:-}";
+        if { [ -z "$$username" ] || [ -z "$$password" ]; } && [ -r "$$credentials" ]; then
+          username="$$(sed -n '1p' "$$credentials")";
+          password="$$(sed -n '2p' "$$credentials")";
+        fi;
+        [ -n "$$username" ] && [ -n "$$password" ] &&
+          curl -fsS -u "$$username:$$password" http://127.0.0.1/api/v1/health >/dev/null
+        ;;
+    esac || exit 1
+
 services:
   skyradar:
     <<: *skyradar-build-image
@@ -56,7 +76,7 @@ services:
       skyradar:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "case \"$${SKYRADAR_BASIC_AUTH_ENABLED:-true}\" in 0|false|False|FALSE|no|No|NO|off|Off|OFF) curl -fsS http://127.0.0.1/api/v1/health >/dev/null ;; *) curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/v1/health >/dev/null ;; esac || exit 1"]
+      test: *skyradar-nginx-healthcheck-test
       interval: 30s
       timeout: 10s
       retries: 5
@@ -108,7 +128,7 @@ services:
       mongo:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "case \"$${SKYRADAR_BASIC_AUTH_ENABLED:-true}\" in 0|false|False|FALSE|no|No|NO|off|Off|OFF) curl -fsS http://127.0.0.1/api/v1/health >/dev/null ;; *) curl -fsS -u \"$$SKYRADAR_BASIC_AUTH_USERNAME:$$SKYRADAR_BASIC_AUTH_PASSWORD\" http://127.0.0.1/api/v1/health >/dev/null ;; esac || exit 1"]
+      test: *skyradar-nginx-healthcheck-test
       interval: 30s
       timeout: 10s
       retries: 5
