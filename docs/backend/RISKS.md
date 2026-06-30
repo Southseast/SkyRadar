@@ -22,7 +22,7 @@
 - Swagger/OpenAPI 文档入口生产默认关闭。
 - 生产必须通过网络边界或反向代理认证限制访问。
 - 当前按 ADR-0008 默认启用 nginx Basic Auth 保护页面和 `/api` 入口；仅可信本地开发可显式关闭。
-- 未显式设置 Basic Auth 凭据时，随机生成的首次登录凭据会打印到 nginx/all-in-one 容器日志；生产环境应设置固定凭据并保护 Docker 日志访问权限。
+- 未显式设置 Basic Auth 凭据时，随机生成或从持久化 auth volume 复用的登录凭据会打印到 nginx/all-in-one 容器日志；生产环境应保护 Docker 日志访问权限。
 - 公网或不可信网络必须叠加 HTTPS、VPN、防火墙或上游认证网关。
 - 如未来需要多用户、审计或细粒度权限，再新增应用层用户体系 ADR。
 

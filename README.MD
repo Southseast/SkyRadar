@@ -120,12 +120,12 @@ docker compose up -d
 
 - 前端：`http://127.0.0.1/`
 - 健康检查：`http://127.0.0.1/api/v1/health`
-- 默认启用 nginx Basic Auth；未设置用户名和密码时，容器会随机生成并打印到 nginx 日志。
+- 默认启用 nginx Basic Auth；未设置用户名和密码时，容器会随机生成、写入持久化 auth volume，并打印到 nginx 日志。后续重新 build 或重建容器会复用同一组凭据。
 
-查看首次登录用户名和密码：
+查看登录用户名和密码：
 
 ```bash
-docker compose logs nginx | sed -n '/Generated SkyRadar Basic Auth credentials:/,+3p'
+docker compose logs nginx | sed -n '/SkyRadar Basic Auth credentials:/,+3p'
 ```
 
 如果启动时显式设置了 `SKYRADAR_BASIC_AUTH_USERNAME` 和 `SKYRADAR_BASIC_AUTH_PASSWORD`，日志不会打印随机凭据，直接使用你设置的固定凭据登录。
@@ -172,25 +172,29 @@ docker compose up -d
 | `SKYRADAR_MONGO_VOLUME` | `skyradar-mongo-data` | Compose MongoDB 持久化 volume 名称 |
 | `SKYRADAR_REDIS_VOLUME` | `skyradar-redis-data` | Compose 拆分 Redis 持久化 volume 名称 |
 | `SKYRADAR_ALL_IN_ONE_REDIS_VOLUME` | `skyradar-all-in-one-redis-data` | Compose all-in-one 内置 Redis 持久化 volume 名称 |
+| `SKYRADAR_NGINX_AUTH_VOLUME` | `skyradar-nginx-auth` | Compose 拆分 nginx Basic Auth 凭据 volume 名称 |
+| `SKYRADAR_ALL_IN_ONE_NGINX_AUTH_VOLUME` | `skyradar-all-in-one-nginx-auth` | Compose all-in-one Basic Auth 凭据 volume 名称 |
 | `SKYRADAR_API_DOCS_ENABLED` | `false` | 是否启用 `/api/v1/docs` |
 | `SKYRADAR_OPENAPI_PATH` | `docs/api/openapi.yaml` | OpenAPI 契约文件路径 |
 | `SKYRADAR_BASIC_AUTH_ENABLED` | `true` | 是否启用 nginx Basic Auth |
-| `SKYRADAR_BASIC_AUTH_USERNAME` | 空 | nginx Basic Auth 用户名；为空时随机生成 |
-| `SKYRADAR_BASIC_AUTH_PASSWORD` | 空 | nginx Basic Auth 密码；为空时随机生成 |
+| `SKYRADAR_BASIC_AUTH_USERNAME` | 空 | nginx Basic Auth 用户名；为空时优先读取持久化 auth volume，缺失时随机生成 |
+| `SKYRADAR_BASIC_AUTH_PASSWORD` | 空 | nginx Basic Auth 密码；为空时优先读取持久化 auth volume，缺失时随机生成 |
 
-Basic Auth 默认开启。未设置用户名或密码时会随机生成缺失项，并打印到 nginx 容器日志：
+Basic Auth 默认开启。未设置用户名或密码时会优先复用 auth volume 中的凭据；volume 为空时随机生成缺失项并打印到 nginx 容器日志：
 
 ```bash
-docker compose logs nginx | sed -n '/Generated SkyRadar Basic Auth credentials:/,+3p'
+docker compose logs nginx | sed -n '/SkyRadar Basic Auth credentials:/,+3p'
 ```
 
-生产环境建议显式设置固定用户名和密码，避免容器重建后凭据变化：
+生产环境可以显式设置固定用户名和密码；显式设置时优先生效并写回运行时 auth 文件：
 
 ```bash
 SKYRADAR_BASIC_AUTH_USERNAME=admin \
 SKYRADAR_BASIC_AUTH_PASSWORD='change-me' \
 docker compose up -d
 ```
+
+如需重置自动生成的登录凭据，可显式设置新的 `SKYRADAR_BASIC_AUTH_USERNAME`/`SKYRADAR_BASIC_AUTH_PASSWORD`，或在确认不需要保留旧登录信息后更换 `SKYRADAR_NGINX_AUTH_VOLUME` 名称。
 
 仅在可信本地开发环境可显式关闭：
 
@@ -205,6 +209,8 @@ Compose 默认使用 named volumes 保存运行数据：
 - `skyradar-mongo-data`：MongoDB 配置、扫描结果和处理状态。
 - `skyradar-redis-data`：默认拆分拓扑的 Redis/Huey broker 和缓存数据。
 - `skyradar-all-in-one-redis-data`：all-in-one 兼容模式的内置 Redis 数据。
+- `skyradar-nginx-auth`：默认拆分拓扑自动生成的 nginx Basic Auth 凭据。
+- `skyradar-all-in-one-nginx-auth`：all-in-one 兼容模式自动生成的 nginx Basic Auth 凭据。
 
 `docker compose up -d` 会在镜像重新构建或容器重建时复用这些 volume。不要在保留数据的环境执行：
 
@@ -217,6 +223,7 @@ docker compose down -v
 ```bash
 SKYRADAR_MONGO_VOLUME=existing-mongo-data \
 SKYRADAR_REDIS_VOLUME=existing-redis-data \
+SKYRADAR_NGINX_AUTH_VOLUME=existing-nginx-auth \
 docker compose up -d
 ```
 
@@ -338,7 +345,7 @@ docker compose up -d
 查看默认拆分拓扑生成的登录凭据：
 
 ```bash
-docker compose logs nginx | sed -n '/Generated SkyRadar Basic Auth credentials:/,+3p'
+docker compose logs nginx | sed -n '/SkyRadar Basic Auth credentials:/,+3p'
 ```
 
 短期单容器兼容模式：
@@ -350,7 +357,7 @@ docker compose --profile all-in-one up -d skyradar-all-in-one mongo
 查看单容器兼容模式生成的登录凭据：
 
 ```bash
-docker compose logs skyradar-all-in-one | sed -n '/Generated SkyRadar Basic Auth credentials:/,+3p'
+docker compose logs skyradar-all-in-one | sed -n '/SkyRadar Basic Auth credentials:/,+3p'
 ```
 
 构建镜像：
@@ -366,6 +373,7 @@ docker run -d \
   --name skyradar \
   -p 80:80 \
   -v skyradar-run-redis-data:/data \
+  -v skyradar-run-nginx-auth:/var/lib/skyradar/nginx \
   -e MONGODB_URI=mongodb://username:password@host:27017/skyradar \
   skyradar
 ```
@@ -373,13 +381,13 @@ docker run -d \
 查看 `docker run` 模式生成的登录凭据：
 
 ```bash
-docker logs skyradar | sed -n '/Generated SkyRadar Basic Auth credentials:/,+3p'
+docker logs skyradar | sed -n '/SkyRadar Basic Auth credentials:/,+3p'
 ```
 
 ## 安全注意
 
 - `/api/v1/*` 当前没有应用级登录态。nginx Basic Auth 默认开启；部署到不可信网络前还必须配合 HTTPS、VPN、内网或可信反向代理。
-- 未显式设置 Basic Auth 凭据时，随机生成的用户名和密码会打印到 nginx/all-in-one 容器日志；生产环境建议改用固定环境变量并保护 Docker 日志访问权限。
+- 未显式设置 Basic Auth 凭据时，随机生成或复用的用户名和密码会打印到 nginx/all-in-one 容器日志；生产环境建议保护 Docker 日志访问权限。
 - GitHub PAT、SMTP 密码和 webhook token 都属于敏感配置，避免在日志、截图、Issue 或聊天记录中暴露。
 - `POST /api/v1/github-accounts` 不应向页面回显原始 token；前端 adapter 会在边界删除敏感字段，后端也应保持敏感字段不回显。
 - MongoDB、Redis 和 Docker 基础镜像升级后，需要在目标部署环境复验 `/api/v1/health`、worker 消费和通知链路。

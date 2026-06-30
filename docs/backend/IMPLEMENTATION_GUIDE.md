@@ -200,8 +200,8 @@ GitHub Actions 后端 workflow 位于 `.github/workflows/backend.yml`，包含�
 - `SKYRADAR_ROLE`：容器角色，支持 `all`、`web`、`nginx`、`worker`。
 - `SKYRADAR_NGINX_UPSTREAM`：nginx `/api` 反向代理 upstream，默认 `127.0.0.1:8888`；compose 的独立 nginx service 设置为 `skyradar:8888`。
 - `SKYRADAR_BASIC_AUTH_ENABLED`：是否启用 nginx Basic Auth，默认 `true`；仅可信本地开发可显式设置为 `false`。
-- `SKYRADAR_BASIC_AUTH_USERNAME`：nginx Basic Auth 用户名；默认启用且为空时由 entrypoint 随机生成。
-- `SKYRADAR_BASIC_AUTH_PASSWORD`：nginx Basic Auth 密码；默认启用且为空时由 entrypoint 随机生成。
+- `SKYRADAR_BASIC_AUTH_USERNAME`：nginx Basic Auth 用户名；默认启用且为空时优先读取持久化 auth volume，缺失时由 entrypoint 随机生成。
+- `SKYRADAR_BASIC_AUTH_PASSWORD`：nginx Basic Auth 密码；默认启用且为空时优先读取持久化 auth volume，缺失时由 entrypoint 随机生成。
 
 当前 compose 已读取：
 
@@ -209,6 +209,8 @@ GitHub Actions 后端 workflow 位于 `.github/workflows/backend.yml`，包含�
 - `SKYRADAR_MONGO_VOLUME`：MongoDB named volume，默认 `skyradar-mongo-data`。
 - `SKYRADAR_REDIS_VOLUME`：拆分 Redis named volume，默认 `skyradar-redis-data`。
 - `SKYRADAR_ALL_IN_ONE_REDIS_VOLUME`：all-in-one 内置 Redis named volume，默认 `skyradar-all-in-one-redis-data`。
+- `SKYRADAR_NGINX_AUTH_VOLUME`：拆分 nginx Basic Auth named volume，默认 `skyradar-nginx-auth`。
+- `SKYRADAR_ALL_IN_ONE_NGINX_AUTH_VOLUME`：all-in-one Basic Auth named volume，默认 `skyradar-all-in-one-nginx-auth`。
 
 规则：
 
@@ -228,14 +230,15 @@ GitHub Actions 后端 workflow 位于 `.github/workflows/backend.yml`，包含�
 
 实现规则：
 
-- Basic Auth 默认启用；未显式设置 `SKYRADAR_BASIC_AUTH_ENABLED=false` 时，entrypoint 会为缺失的 `SKYRADAR_BASIC_AUTH_USERNAME` 或 `SKYRADAR_BASIC_AUTH_PASSWORD` 随机生成值。
+- Basic Auth 默认启用；未显式设置 `SKYRADAR_BASIC_AUTH_ENABLED=false` 时，entrypoint 会优先读取持久化 auth volume 中的凭据，并为仍缺失的 `SKYRADAR_BASIC_AUTH_USERNAME` 或 `SKYRADAR_BASIC_AUTH_PASSWORD` 随机生成值。
 - 仅可信本地开发环境可设置 `SKYRADAR_BASIC_AUTH_ENABLED=false`；关闭后不生成 `auth_basic` 配置。
-- entrypoint 使用运行时密码生成 `/etc/nginx/.skyradar_htpasswd`，并把最终明文凭据写入 root-only 的 `/etc/nginx/.skyradar_basic_auth_credentials` 供容器 healthcheck 使用；这些文件不写入仓库或镜像构建层。
-- entrypoint 仅在自动生成缺失凭据时把最终用户名和密码打印到 nginx/all-in-one 容器日志，便于首次部署登录；生产环境建议显式设置固定凭据并保护 Docker 日志访问权限。
+- entrypoint 使用运行时密码生成 `/var/lib/skyradar/nginx/.skyradar_htpasswd`，并把最终明文凭据写入 root-only 的 `/var/lib/skyradar/nginx/.skyradar_basic_auth_credentials` 供容器 healthcheck 和后续重建复用；这些文件不写入仓库或镜像构建层。
+- compose 默认把 `/var/lib/skyradar/nginx` 挂载到 named volume；拆分 nginx 使用 `skyradar-nginx-auth`，all-in-one 使用 `skyradar-all-in-one-nginx-auth`。
+- entrypoint 在自动生成或复用持久化凭据时把最终用户名和密码打印到 nginx/all-in-one 容器日志，便于重建后查看登录信息；生产环境建议保护 Docker 日志访问权限。
 - nginx server 级别启用 Basic Auth，覆盖前端页面、静态资源和 `/api`。
 - compose healthcheck 在默认启用 Basic Auth 时优先使用环境变量凭据，缺失时读取 entrypoint 生成的凭据文件；显式关闭时才允许无认证 healthcheck。
 - 生产或公网可达环境必须配合 HTTPS 或受控内网；不得在明文 HTTP 公网环境下依赖 Basic Auth。
-- 除首次自动生成 Basic Auth 凭据的容器日志外，测试输出和错误消息不得打印 Basic Auth 密码。
+- 除自动生成或复用 Basic Auth 凭据的 nginx/all-in-one 容器日志外，测试输出和错误消息不得打印 Basic Auth 密码。
 
 ## CI 设计
 

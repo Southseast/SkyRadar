@@ -7,6 +7,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 from scripts import backend_compose_smoke
 
@@ -47,6 +48,24 @@ def test_startup_commands_support_fresh_volume_rebuild():
         "docker compose -f compose.yml -p skyradar-smoke up -d --build",
     ]
     assert shutdown == "docker compose -f compose.yml -p skyradar-smoke down -v --remove-orphans"
+
+def test_compose_persists_basic_auth_credentials_volume():
+    compose_text = Path("compose.yml").read_text(encoding="utf-8")
+
+    assert "credentials=/var/lib/skyradar/nginx/.skyradar_basic_auth_credentials" in compose_text
+    assert "nginx-auth:/var/lib/skyradar/nginx" in compose_text
+    assert "all-in-one-nginx-auth:/var/lib/skyradar/nginx" in compose_text
+    assert "SKYRADAR_NGINX_AUTH_VOLUME:-skyradar-nginx-auth" in compose_text
+    assert "SKYRADAR_ALL_IN_ONE_NGINX_AUTH_VOLUME:-skyradar-all-in-one-nginx-auth" in compose_text
+
+def test_entrypoint_reuses_persisted_basic_auth_credentials():
+    entrypoint_text = Path("docker-entrypoint.sh").read_text(encoding="utf-8")
+
+    assert 'nginx_auth_state_dir="/var/lib/skyradar/nginx"' in entrypoint_text
+    assert 'nginx_basic_auth_credentials="${nginx_auth_state_dir}/.skyradar_basic_auth_credentials"' in entrypoint_text
+    assert 'persisted_username="$(sed -n \'1p\' "${nginx_basic_auth_credentials}")"' in entrypoint_text
+    assert 'persisted_password="$(sed -n \'2p\' "${nginx_basic_auth_credentials}")"' in entrypoint_text
+    assert "Using persisted SkyRadar Basic Auth credentials:" in entrypoint_text
 
 def test_smoke_request_adds_basic_auth_from_environment(monkeypatch):
     monkeypatch.setenv("SKYRADAR_BASIC_AUTH_ENABLED", "true")

@@ -76,13 +76,14 @@
 - [ ] 未设置 `SKYRADAR_BASIC_AUTH_ENABLED` 时，nginx Basic Auth 默认启用。
 - [ ] 默认启用时，同时设置 `SKYRADAR_BASIC_AUTH_USERNAME` 和 `SKYRADAR_BASIC_AUTH_PASSWORD` 可启动并访问。
 - [ ] 只配置用户名或只配置密码时，entrypoint 为缺失项随机生成值并打印最终凭据。
-- [ ] 未配置用户名和密码且未显式关闭 Basic Auth 时，nginx/all-in-one 角色随机生成用户名和密码并打印到容器日志。
+- [ ] 未配置用户名和密码且未显式关闭 Basic Auth 时，nginx/all-in-one 角色优先复用持久化 auth volume；volume 为空时随机生成用户名和密码并打印到容器日志。
+- [ ] compose named volumes 已覆盖拆分 nginx `/var/lib/skyradar/nginx` 和 all-in-one `/var/lib/skyradar/nginx`，重建容器或重新 build 后自动生成的登录凭据保持不变。
 - [ ] 仅设置 `SKYRADAR_BASIC_AUTH_ENABLED=false` 时允许无认证本地开发或 smoke。
 - [ ] 启用 Basic Auth 后，无认证访问页面、静态资源和 `/api/v1/health` 返回 HTTP `401`。
 - [ ] 启用 Basic Auth 后，正确用户名和密码可访问页面和 `/api/v1/health`。
-- [ ] compose nginx 和 all-in-one healthcheck 默认优先使用环境变量认证信息，缺失时读取 entrypoint 生成的凭据文件；显式关闭时才无认证。
+- [ ] compose nginx 和 all-in-one healthcheck 默认优先使用环境变量认证信息，缺失时读取持久化 auth volume 中的凭据文件；显式关闭时才无认证。
 - [ ] htpasswd 和 healthcheck 凭据文件在运行时生成，不写入 Git、镜像构建层或测试快照。
-- [ ] 自动生成的 Basic Auth 密码只出现在首次登录所需的 nginx/all-in-one 容器日志，不出现在 OpenAPI 示例、测试 fixture 或 CI artifact。
+- [ ] 自动生成或复用的 Basic Auth 密码只出现在登录所需的 nginx/all-in-one 容器日志，不出现在 OpenAPI 示例、测试 fixture 或 CI artifact。
 - [ ] 文档明确 Basic Auth 需要 HTTPS、VPN、内网或可信反向代理配合。
 
 ## 6. PyMongo 4 门禁
