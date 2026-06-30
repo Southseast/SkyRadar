@@ -37,4 +37,21 @@ describe("ResultsTable", () => {
       "https://github.com/acme/skyradar/blob/main/secret.py",
     )
   })
+
+  it("keeps repository and file labels as static text", () => {
+    render(
+      <MemoryRouter>
+        <TooltipProvider>
+          <ResultsTable results={[leakage]} loading={false} onMarkIgnored={vi.fn()} />
+        </TooltipProvider>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText("仓库")).toBeInTheDocument()
+    expect(screen.getByText("文件")).toBeInTheDocument()
+    expect(screen.getByText("acme/skyradar")).toBeInTheDocument()
+    expect(screen.getByText("secret.py")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "acme/skyradar" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "secret.py" })).not.toBeInTheDocument()
+  })
 })

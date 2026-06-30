@@ -47,9 +47,10 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
 
   return (
     <div className="divide-y divide-border">
-      <div className="hidden gap-3 bg-surface-subtle px-4 py-2 text-xs font-semibold text-muted-foreground lg:grid lg:grid-cols-[9rem_minmax(18rem,1fr)_6rem_8rem_6rem_13rem] lg:items-center">
+      <div className="hidden gap-3 bg-surface-subtle px-4 py-2 text-xs font-semibold text-muted-foreground lg:grid lg:grid-cols-[8.5rem_minmax(11rem,1fr)_minmax(14rem,1.2fr)_5.5rem_7rem_5.5rem_13rem] lg:items-center">
         <div>发现时间</div>
-        <div>仓库 / 文件</div>
+        <div>仓库</div>
+        <div>文件</div>
         <div>语言</div>
         <div>标签</div>
         <div>状态</div>
@@ -65,31 +66,16 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
         return (
           <article
             key={item._id}
-            className="grid gap-3 px-4 py-3 transition-colors hover:bg-hover-surface/60 lg:grid-cols-[9rem_minmax(18rem,1fr)_6rem_8rem_6rem_13rem] lg:items-center"
+            className="grid gap-3 px-4 py-3 transition-colors hover:bg-hover-surface/60 lg:grid-cols-[8.5rem_minmax(11rem,1fr)_minmax(14rem,1.2fr)_5.5rem_7rem_5.5rem_13rem] lg:items-center"
           >
             <div className="text-xs text-muted-foreground">{formatDateTime(item.datetime)}</div>
 
             <div className="min-w-0">
-              {projectUrl ? (
-                <a
-                  href={projectUrl}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="block truncate text-sm font-semibold text-info hover:underline"
-                >
-                  {item.project || "未知仓库"}
-                </a>
-              ) : (
-                <span className="block truncate text-sm font-semibold">{item.project || "未知仓库"}</span>
-              )}
+              <span className="block truncate text-sm font-semibold">{item.project || "未知仓库"}</span>
+            </div>
 
-              <Link
-                to={`/view/leakage/${item._id}`}
-                className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <FileCode className="size-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{item.filepath || item.filename || "未知文件"}</span>
-              </Link>
+            <div className="min-w-0">
+              <span className="block truncate text-xs text-muted-foreground">{item.filepath || item.filename || "未知文件"}</span>
             </div>
 
             <div className="text-sm text-muted-foreground lg:text-foreground">{item.language || "未知"}</div>
