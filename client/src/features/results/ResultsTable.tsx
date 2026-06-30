@@ -47,7 +47,7 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
 
   return (
     <div className="divide-y divide-border">
-      <div className="hidden gap-3 bg-surface-subtle px-4 py-2 text-xs font-semibold text-muted-foreground lg:grid lg:grid-cols-[9rem_minmax(18rem,1fr)_6rem_8rem_6rem_9rem] lg:items-center">
+      <div className="hidden gap-3 bg-surface-subtle px-4 py-2 text-xs font-semibold text-muted-foreground lg:grid lg:grid-cols-[9rem_minmax(18rem,1fr)_6rem_8rem_6rem_13rem] lg:items-center">
         <div>发现时间</div>
         <div>仓库 / 文件</div>
         <div>语言</div>
@@ -57,7 +57,7 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
       </div>
       {results.map((item) => {
         const projectUrl = getExternalUrl(item.project_url)
-        const commitsUrl = getGithubCommitsUrl(item.project)
+        const sourceUrl = getExternalUrl(item.link)
         const quickCheckUrl = projectUrl
           ? `${projectUrl}/search?utf8=%E2%9C%93&q=pass%20OR%20password%20OR%20passwd%20OR%20pwd%20OR%20smtp%20OR%20database`
           : ""
@@ -65,7 +65,7 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
         return (
           <article
             key={item._id}
-            className="grid gap-3 px-4 py-3 transition-colors hover:bg-hover-surface/60 lg:grid-cols-[9rem_minmax(18rem,1fr)_6rem_8rem_6rem_9rem] lg:items-center"
+            className="grid gap-3 px-4 py-3 transition-colors hover:bg-hover-surface/60 lg:grid-cols-[9rem_minmax(18rem,1fr)_6rem_8rem_6rem_13rem] lg:items-center"
           >
             <div className="text-xs text-muted-foreground">{formatDateTime(item.datetime)}</div>
 
@@ -107,9 +107,19 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
             <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" disabled={!commitsUrl} asChild={Boolean(commitsUrl)}>
-                    {commitsUrl ? (
-                      <a href={commitsUrl} target="_blank" rel="noreferrer noopener" aria-label="查看 commits">
+                  <Button variant="ghost" size="icon-sm" asChild>
+                    <Link to={`/view/leakage/${item._id}`} aria-label="查看泄露详情代码">
+                      <FileCode className="size-4" aria-hidden="true" />
+                    </Link>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>泄露详情代码</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" disabled={!sourceUrl} asChild={Boolean(sourceUrl)}>
+                    {sourceUrl ? (
+                      <a href={sourceUrl} target="_blank" rel="noreferrer noopener" aria-label="GitHub 源代码">
                         <ExternalLink className="size-4" aria-hidden="true" />
                       </a>
                     ) : (
@@ -117,7 +127,7 @@ export function ResultsTable({ results, loading, error, onMarkIgnored }: Results
                     )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Commits</TooltipContent>
+                <TooltipContent>GitHub 源代码</TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -159,10 +169,4 @@ function renderStatus(item: Leakage) {
 
 function getExternalUrl(value?: string | null) {
   return value && value.trim() ? value : ""
-}
-
-function getGithubCommitsUrl(project?: string | null) {
-  if (!project || !project.includes("/")) return ""
-
-  return `https://github.com/${project}/commits`
 }
