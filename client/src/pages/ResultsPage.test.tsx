@@ -103,4 +103,43 @@ describe("ResultsPage", () => {
     })
     expect(await screen.findByText("已批量标记 2 条为误报")).toBeInTheDocument()
   })
+
+  it("keeps current results visible and does not reload dashboard when changing pages", async () => {
+    const user = userEvent.setup()
+    let resolveNextPage: ((value: { result: Leakage[]; total: number }) => void) | undefined
+    const nextPage = new Promise<{ result: Leakage[]; total: number }>((resolve) => {
+      resolveNextPage = resolve
+    })
+
+    vi.mocked(fetchLeakages)
+      .mockResolvedValueOnce({ result: [leakages[0]], total: 20 })
+      .mockReturnValueOnce(nextPage)
+
+    render(
+      <MemoryRouter>
+        <TooltipProvider>
+          <ResultsPage />
+        </TooltipProvider>
+      </MemoryRouter>,
+    )
+
+    await screen.findByText("acme/skyradar")
+    expect(fetchTrend).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole("button", { name: "下一页" }))
+
+    await waitFor(() => {
+      expect(fetchLeakages).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          page: 2,
+          page_size: 10,
+        }),
+      )
+    })
+    expect(screen.getByText("acme/skyradar")).toBeInTheDocument()
+    expect(fetchTrend).toHaveBeenCalledTimes(1)
+
+    resolveNextPage?.({ result: [leakages[1]], total: 20 })
+    expect(await screen.findByText("acme/ops")).toBeInTheDocument()
+  })
 })

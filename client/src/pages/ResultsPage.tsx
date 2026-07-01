@@ -80,9 +80,14 @@ export function ResultsPage() {
   useEffect(() => {
     void Promise.resolve().then(() => {
       void loadTrend()
+    })
+  }, [loadTrend])
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
       void loadResults()
     })
-  }, [loadResults, loadTrend])
+  }, [loadResults])
 
   useEffect(() => {
     let mounted = true
@@ -113,6 +118,7 @@ export function ResultsPage() {
   }, [queryState.tag])
 
   const pageCount = Math.max(1, Math.ceil(total / queryState.limit))
+  const showInitialResultsLoading = loadingResults && !results.length
   const selectedItems = results.filter((item) => selectedIds.has(item._id))
   const selectedCount = selectedItems.length
 
@@ -235,7 +241,7 @@ export function ResultsPage() {
         <SettingsBoxRow className="p-0">
           <ResultsTable
             results={results}
-            loading={loadingResults}
+            loading={showInitialResultsLoading}
             error={resultError}
             onMarkIgnored={handleMarkIgnored}
             selectedIds={selectedIds}
@@ -268,7 +274,7 @@ export function ResultsPage() {
                 variant="outline"
                 size="sm"
                 className="rounded-md"
-                disabled={queryState.page <= 1}
+                disabled={loadingResults || queryState.page <= 1}
                 onClick={() => updateQuery({ ...queryState, page: queryState.page - 1 })}
               >
                 上一页
@@ -280,7 +286,7 @@ export function ResultsPage() {
                 variant="outline"
                 size="sm"
                 className="rounded-md"
-                disabled={queryState.page >= pageCount}
+                disabled={loadingResults || queryState.page >= pageCount}
                 onClick={() => updateQuery({ ...queryState, page: queryState.page + 1 })}
               >
                 下一页
