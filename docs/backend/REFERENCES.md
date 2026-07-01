@@ -18,6 +18,17 @@
 - FastAPI 版本策略：<https://fastapi.tiangolo.com/deployment/versions/>
 - FastAPI WSGI 挂载：<https://fastapi.tiangolo.com/advanced/wsgi/>
 
+## 本地第三方通知资料
+
+- DingTalk 机器人消息格式本地资料：`docs/api/dingtalk_bot.md`
+- Feishu 自定义机器人本地资料：`docs/api/feishu_bot.md`
+
+适用边界：
+
+- 这两份资料只作为通知 payload、签名和频率限制的开发参考。
+- SkyRadar 当前实现和契约以 `server/integrations/notifications/`、`docs/api/openapi.yaml` 和设置接口契约测试为准。
+- 平台能力、限流或签名规则变化时，优先核对官方在线文档，再更新本地资料。
+
 ## GitHub 工程参考
 
 ### fastapi/full-stack-fastapi-template

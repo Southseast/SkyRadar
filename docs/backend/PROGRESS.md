@@ -1,7 +1,5 @@
 # 后端 Harness 进度
 
-更新时间：2026-06-15
-
 职责：本文只记录当前有效状态、已完成事项、下一步、阻塞项、待补验证和最近真实验证。
 
 职责边界：
@@ -52,7 +50,6 @@
 
 - 最新未提交变更推送后，需要回填远端 GitHub Actions 结果。
 - Compose 已为 MongoDB 和 Redis 配置 named volume 持久化；保留数据升级、备份和恢复仍需在目标环境发布前单独验证。
-- 任务调度 minute 修复的实现和测试已回填；已覆盖 MongoDB 原子 claim、防重复 enqueue、PUT 后新周期生效和 `next_due_at` 推进。
 
 ## 最近验证
 

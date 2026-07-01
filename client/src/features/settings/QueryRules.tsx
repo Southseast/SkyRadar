@@ -185,7 +185,7 @@ export function QueryRules() {
         <SettingsBoxRow className="space-y-3">
           <SettingsRowTitle icon={Search}>{editingId ? "编辑查询规则" : "添加查询规则"}</SettingsRowTitle>
           <form className="grid gap-3 xl:grid-cols-[220px_170px_1fr_110px_auto] xl:items-end" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
+            <div className="grid gap-1.5">
               <Label htmlFor="query-rule-tag">名称</Label>
               <Input
                 id="query-rule-tag"
@@ -195,7 +195,7 @@ export function QueryRules() {
                 placeholder="例如 credential"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="grid gap-1.5 [&>select]:hidden">
               <Label htmlFor="query-rule-search-type">查询类型</Label>
               <Select
                 value={form.search_type}
@@ -203,16 +203,18 @@ export function QueryRules() {
                   setForm((current) => ({ ...current, search_type: search_type === "repositories" ? "repositories" : "code" }))
                 }
               >
-                <SelectTrigger id="query-rule-search-type" className="h-9 w-full rounded-md">
-                  <SelectValue />
-                </SelectTrigger>
+                <div className="h-9 overflow-hidden">
+                  <SelectTrigger id="query-rule-search-type" className="!h-9 w-full rounded-md">
+                    <SelectValue />
+                  </SelectTrigger>
+                </div>
                 <SelectContent>
                   <SelectItem value="code">Code</SelectItem>
                   <SelectItem value="repositories">Repositories</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
+            <div className="grid gap-1.5">
               <Label htmlFor="query-rule-keyword">关键字</Label>
               <Input
                 id="query-rule-keyword"
@@ -222,7 +224,7 @@ export function QueryRules() {
                 className="h-9 rounded-md"
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="grid gap-1.5">
               <Label htmlFor="query-rule-enabled">启用状态</Label>
               <label className="flex h-9 items-center gap-2 text-sm">
                 <Switch id="query-rule-enabled" checked={form.enabled} onCheckedChange={(enabled) => setForm((current) => ({ ...current, enabled }))} />
@@ -252,38 +254,33 @@ export function QueryRules() {
               <Skeleton className="h-10 rounded" />
             </div>
           ) : rules.length ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-surface-subtle">
-                    <TableHead className="min-w-[150px]">名称</TableHead>
-                    <TableHead className="min-w-[130px]">类型</TableHead>
-                    <TableHead className="min-w-[280px]">关键字</TableHead>
-                    <TableHead className="min-w-[130px]">最后抓取</TableHead>
-                    <TableHead className="min-w-[110px]">总数</TableHead>
-                    <TableHead className="min-w-[110px]">已抓取</TableHead>
-                    <TableHead className="min-w-[100px]">状态</TableHead>
-                    <TableHead className="min-w-[170px] text-right">操作</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rules.map((rule) => (
-                    <TableRow key={rule._id} className="hover:bg-hover-surface/60">
-                      <TableCell>
-                        <Link to={`/?tag=${encodeURIComponent(rule.tag)}`}>
-                          <Badge variant="outline" className="rounded">
-                            {rule.tag}
-                          </Badge>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary" className="rounded">
+            <Table className="table-fixed">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[18%]">名称</TableHead>
+                  <TableHead className="w-[38%]">查询</TableHead>
+                  <TableHead className="w-[18%]">抓取进度</TableHead>
+                  <TableHead className="w-[12%]">状态</TableHead>
+                  <TableHead className="w-[14%] text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rules.map((rule) => (
+                  <TableRow key={rule._id}>
+                    <TableCell className="min-w-0">
+                      <Link to={`/?tag=${encodeURIComponent(rule.tag)}`}>
+                        <Badge variant="outline" className="max-w-full rounded">
+                          <span className="truncate">{rule.tag}</span>
+                        </Badge>
+                      </Link>
+                    </TableCell>
+                    <TableCell className="min-w-0 whitespace-normal">
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <Badge variant="secondary" className="w-fit rounded">
                           {searchTypeLabel[rule.search_type]}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
                         <a
-                          className="inline-flex max-w-[420px] items-center gap-1 text-info hover:underline"
+                          className="inline-flex min-w-0 items-center gap-1 text-info hover:underline"
                           href={githubSearchUrl(rule)}
                           target="_blank"
                           rel="noreferrer noopener"
@@ -291,44 +288,57 @@ export function QueryRules() {
                           <span className="truncate">{rule.keyword}</span>
                           <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
                         </a>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{formatRelativeTime(rule.last)}</TableCell>
-                      <TableCell>{formatCount(rule.api_total)}</TableCell>
-                      <TableCell>{formatCount(rule.found_total)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            checked={rule.enabled}
-                            onCheckedChange={(enabled) => void handleToggle(rule, enabled)}
-                            aria-label={`${rule.tag} 启用状态`}
-                          />
-                          <span className="text-xs text-muted-foreground">{rule.enabled ? "启用" : "停用"}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-normal text-sm">
+                      <div className="space-y-0.5">
+                        <div>
+                          {formatCount(rule.found_total)} / {formatCount(rule.api_total)}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-end gap-1.5">
-                          <Button type="button" variant="outline" size="sm" className="rounded-md" onClick={() => startEdit(rule)}>
-                            <Edit2 className="size-4" aria-hidden="true" />
-                            编辑
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="rounded-md text-risk hover:text-risk"
-                            disabled={deletingId === rule._id}
-                            onClick={() => void handleDelete(rule)}
-                          >
-                            <Trash2 className="size-4" aria-hidden="true" />
-                            删除
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                        <div className="text-xs text-muted-foreground">{formatRelativeTime(rule.last)}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={rule.enabled}
+                          onCheckedChange={(enabled) => void handleToggle(rule, enabled)}
+                          aria-label={`${rule.tag} 启用状态`}
+                        />
+                        <span className="hidden text-xs text-muted-foreground sm:inline">{rule.enabled ? "启用" : "停用"}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-md max-sm:size-7 max-sm:px-0"
+                          aria-label="编辑"
+                          onClick={() => startEdit(rule)}
+                        >
+                          <Edit2 className="size-4" aria-hidden="true" />
+                          <span className="hidden sm:inline">编辑</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="rounded-md text-risk hover:text-risk max-sm:size-7 max-sm:px-0"
+                          aria-label="删除"
+                          disabled={deletingId === rule._id}
+                          onClick={() => void handleDelete(rule)}
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
+                          <span className="hidden sm:inline">删除</span>
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : (
             <div className="rounded border border-dashed p-6 text-center">
               <p className="text-sm font-medium">暂无查询规则</p>
