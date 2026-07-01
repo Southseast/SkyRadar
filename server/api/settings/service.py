@@ -5,9 +5,11 @@
 # @Description : Implements settings service logic.
 
 import hashlib
+import re
 import time
 from urllib.parse import urlparse
 
+from api.github_search import assets as asset_rules
 from api.notifications import messages as notification_messages
 from api.settings import repository as setting_repository
 from integrations import dingtalk as dingtalk_integration
@@ -20,6 +22,7 @@ TASK_SETTING_INTERNAL_FIELDS = {"next_due_at", "last_scheduled_at"}
 SEARCH_TYPE_CODE = "code"
 SEARCH_TYPE_REPOSITORIES = "repositories"
 SEARCH_TYPES = {SEARCH_TYPE_CODE, SEARCH_TYPE_REPOSITORIES}
+ASSET_RULE_TYPE_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 
 
 class SettingsServiceError(Exception):
@@ -63,6 +66,14 @@ def normalize_search_type(value):
 def public_search_rule(rule):
     public_rule = dict(rule)
     public_rule["search_type"] = normalize_search_type(public_rule.get("search_type"))
+    return public_rule
+
+
+def public_asset_rule(rule):
+    public_rule = dict(rule)
+    public_rule.pop("key", None)
+    public_rule["enabled"] = bool(public_rule.get("enabled", True))
+    public_rule["builtin"] = bool(public_rule.get("builtin", False))
     return public_rule
 
 
@@ -189,6 +200,92 @@ def delete_blacklist_item(text):
     delete_result = setting_repository.delete_blacklist(normalized)
     if getattr(delete_result, "deleted_count", 0) == 0:
         raise SettingsServiceError(404, "blacklist item was not found")
+    return None
+
+
+def get_asset_rules():
+    rules = asset_rules.merge_asset_rules(setting_repository.list_asset_rules())
+    return [public_asset_rule(rule) for rule in rules]
+
+
+def _normalize_asset_rule_type(value):
+    asset_type = _require_text(value, "type").strip().lower()
+    if not ASSET_RULE_TYPE_PATTERN.match(asset_type):
+        raise SettingsServiceError(400, "type must start with a letter and contain only lowercase letters, numbers, underscore, or hyphen")
+    return asset_type
+
+
+def _validate_asset_rule_pattern(pattern):
+    pattern = _require_text(pattern, "pattern").strip()
+    try:
+        re.compile(pattern)
+    except re.error as error:
+        raise SettingsServiceError(400, f"pattern is not a valid regular expression: {error}") from error
+    return pattern
+
+
+def _default_asset_rule_by_id(rule_id):
+    for rule in asset_rules.default_asset_rules():
+        if rule["_id"] == rule_id:
+            return rule
+    return None
+
+
+def create_asset_rule(name, asset_type, pattern, enabled=True):
+    name = _require_text(name, "name").strip()
+    asset_type = _normalize_asset_rule_type(asset_type)
+    pattern = _validate_asset_rule_pattern(pattern)
+    document = {
+        "_id": hashlib.md5(f"{asset_type}:{name}".encode("utf-8")).hexdigest(),
+        "key": "asset_rule",
+        "name": name,
+        "type": asset_type,
+        "pattern": pattern,
+        "enabled": bool(enabled),
+        "builtin": False,
+    }
+    setting_repository.save_asset_rule(document)
+    return public_asset_rule(document)
+
+
+def put_asset_rule(rule_id, name, asset_type, pattern, enabled=True):
+    rule_id = _require_text(rule_id, "rule_id")
+    name = _require_text(name, "name").strip()
+    asset_type = _normalize_asset_rule_type(asset_type)
+    pattern = _validate_asset_rule_pattern(pattern)
+    document = {
+        "_id": rule_id,
+        "key": "asset_rule",
+        "name": name,
+        "type": asset_type,
+        "pattern": pattern,
+        "enabled": bool(enabled),
+        "builtin": _default_asset_rule_by_id(rule_id) is not None,
+    }
+    setting_repository.save_asset_rule(document)
+    return public_asset_rule(document)
+
+
+def delete_asset_rule(rule_id):
+    rule_id = _require_text(rule_id, "rule_id")
+    default_rule = _default_asset_rule_by_id(rule_id)
+    if default_rule is not None:
+        setting_repository.save_deleted_asset_rule(
+            {
+                "_id": rule_id,
+                "key": "asset_rule",
+                "name": default_rule["name"],
+                "type": default_rule["type"],
+                "pattern": default_rule["pattern"],
+                "enabled": False,
+                "builtin": True,
+                "deleted": True,
+            }
+        )
+        return None
+    delete_result = setting_repository.delete_asset_rule(rule_id)
+    if getattr(delete_result, "deleted_count", 0) == 0:
+        raise SettingsServiceError(404, "asset rule was not found")
     return None
 
 

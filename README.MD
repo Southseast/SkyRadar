@@ -30,7 +30,7 @@ SkyRadar 当前聚焦 GitHub Code Search 主线：
 - 支持多 GitHub 账号/PAT 配置和搜索配额展示。
 - 展示泄露结果、趋势统计、标签统计、详情代码片段和受影响资产。
 - 支持结果状态处理：确认、误报、忽略、备注。
-- 支持查询规则、任务周期、黑名单、通知邮箱、SMTP、钉钉 webhook 和飞书 webhook 配置。
+- 支持查询规则、资产提取规则、任务周期、黑名单、通知邮箱、SMTP、钉钉 webhook 和飞书 webhook 配置。
 - 支持邮件、钉钉 webhook 和飞书 webhook 通知。
 
 不在当前主线内的能力：

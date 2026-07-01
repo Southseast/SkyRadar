@@ -510,6 +510,85 @@ paths:
           description: 黑名单项已删除；响应不返回 body。
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/asset-rules:
+    get:
+      tags:
+        - Settings
+      summary: 获取资产提取规则
+      operationId: listAssetRules
+      responses:
+        "200":
+          description: 资产提取规则列表。未配置时返回预置 domain、email 和 ip 正则规则。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetRuleListSuccess"
+    post:
+      tags:
+        - Settings
+      summary: 新增资产提取规则
+      operationId: createAssetRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssetRuleRequest"
+            example:
+              name: AWS Access Key
+              type: secret
+              pattern: AKIA[0-9A-Z]{16}
+              enabled: true
+      responses:
+        "201":
+          description: 资产提取规则已创建。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetRuleSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/asset-rules/{rule_id}:
+    put:
+      tags:
+        - Settings
+      summary: 更新资产提取规则
+      operationId: updateAssetRule
+      parameters:
+        - $ref: "#/components/parameters/AssetRuleId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssetRuleRequest"
+      responses:
+        "200":
+          description: 资产提取规则已更新。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssetRuleSuccess"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+    delete:
+      tags:
+        - Settings
+      summary: 删除资产提取规则
+      operationId: deleteAssetRule
+      parameters:
+        - $ref: "#/components/parameters/AssetRuleId"
+      responses:
+        "204":
+          description: 资产提取规则已删除；预置规则删除后会被隐藏并不再参与扫描，响应不返回 body。
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/notification-recipients:
     get:
       tags:
@@ -735,6 +814,13 @@ components:
       schema:
         type: string
       example: obsolete-secret
+    AssetRuleId:
+      name: rule_id
+      in: path
+      required: true
+      schema:
+        type: string
+      example: email
   responses:
     BadRequest:
       description: 请求格式或参数无法处理。
@@ -1214,6 +1300,64 @@ components:
       properties:
         text:
           type: string
+    AssetRuleListSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/AssetRule"
+    AssetRuleSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/AssetRule"
+    AssetRule:
+      type: object
+      required:
+        - _id
+        - name
+        - type
+        - pattern
+        - enabled
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          description: 命中后写入 affected asset 的类型。domain、email 和 ip 会额外执行格式校验。
+          pattern: "^[a-z][a-z0-9_-]{0,31}$"
+        pattern:
+          type: string
+          description: Python 正则表达式。
+        enabled:
+          type: boolean
+        builtin:
+          type: boolean
+          description: 是否为 SkyRadar 预置规则。
+    AssetRuleRequest:
+      type: object
+      required:
+        - name
+        - type
+        - pattern
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          pattern: "^[a-z][a-z0-9_-]{0,31}$"
+        pattern:
+          type: string
+        enabled:
+          type: boolean
+          default: true
     NoticeRecipientListSuccess:
       allOf:
         - $ref: "#/components/schemas/ApiSuccess"

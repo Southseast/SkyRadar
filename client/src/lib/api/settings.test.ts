@@ -4,14 +4,17 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { apiClient } from "@/lib/api/client"
 import {
   addGithubAccount,
+  deleteAssetRule,
   deleteGithubAccount,
   deleteQueryRule,
   deleteWebhookSetting,
+  fetchAssetRules,
   fetchBlacklist,
   fetchGithubAccounts,
   fetchNoticeMails,
   fetchQueryRules,
   fetchWebhookSettings,
+  saveAssetRule,
   saveQueryRule,
   saveSmtpSetting,
 } from "@/lib/api/settings"
@@ -171,6 +174,46 @@ describe("settings api adapter", () => {
     })
 
     expect(deleteSpy).toHaveBeenCalledWith(expect.stringContaining("/api/v1/webhooks/hashed-webhook"))
+  })
+
+  it("uses asset rule endpoints for custom extraction rules", async () => {
+    const getSpy = vi.spyOn(apiClient, "get").mockResolvedValue({
+      data: {
+        data: [{ _id: "email", name: "Email", type: "email", pattern: "@", enabled: true, builtin: true }],
+      },
+    } as AxiosResponse)
+    const postSpy = vi.spyOn(apiClient, "post").mockResolvedValue({
+      data: { data: {} },
+    } as AxiosResponse)
+    const putSpy = vi.spyOn(apiClient, "put").mockResolvedValue({
+      data: { data: {} },
+    } as AxiosResponse)
+    const deleteSpy = vi.spyOn(apiClient, "delete").mockResolvedValue({
+      status: 204,
+      data: undefined,
+    } as AxiosResponse)
+
+    await expect(fetchAssetRules()).resolves.toEqual([
+      { _id: "email", name: "Email", type: "email", pattern: "@", enabled: true, builtin: true },
+    ])
+    await saveAssetRule({ name: "AWS Key", type: "secret", pattern: "AKIA[0-9A-Z]{16}", enabled: true })
+    await saveAssetRule({ name: "Email", type: "email", pattern: "@", enabled: false }, "email")
+    await deleteAssetRule({ _id: "custom/rule" })
+
+    expect(getSpy).toHaveBeenCalledWith("/api/v1/asset-rules")
+    expect(postSpy).toHaveBeenCalledWith("/api/v1/asset-rules", {
+      name: "AWS Key",
+      type: "secret",
+      pattern: "AKIA[0-9A-Z]{16}",
+      enabled: true,
+    })
+    expect(putSpy).toHaveBeenCalledWith("/api/v1/asset-rules/email", {
+      name: "Email",
+      type: "email",
+      pattern: "@",
+      enabled: false,
+    })
+    expect(deleteSpy).toHaveBeenCalledWith("/api/v1/asset-rules/custom%2Frule")
   })
 
   it("normalizes malformed list results", async () => {

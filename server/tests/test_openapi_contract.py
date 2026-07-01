@@ -28,6 +28,8 @@ EXPECTED_RUNTIME_PATHS = {
     "/api/v1/task-schedules/current",
     "/api/v1/blacklist-items",
     "/api/v1/blacklist-items/{text:path}",
+    "/api/v1/asset-rules",
+    "/api/v1/asset-rules/{rule_id}",
     "/api/v1/notification-recipients",
     "/api/v1/notification-recipients/{mail}",
     "/api/v1/mail-settings/current",

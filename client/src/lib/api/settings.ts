@@ -2,6 +2,7 @@ import { apiClient, getResponseData, toMutationResult } from "@/lib/api/client"
 import { endpoints } from "@/lib/api/endpoints"
 import type {
   ApiResponse,
+  AssetRule,
   BlacklistItem,
   GithubAccount,
   NoticeMail,
@@ -93,6 +94,25 @@ export async function addBlacklistItem(text: string) {
 export async function deleteBlacklistItem(text: string) {
   const response = await apiClient.delete<ApiResponse<unknown> | undefined>(endpoints.blacklistItem(text))
   return toMutationResult(normalizeList<BlacklistItem>(getResponseData(response.data)), "删除成功")
+}
+
+export type AssetRulePayload = Pick<AssetRule, "name" | "type" | "pattern" | "enabled">
+
+export async function fetchAssetRules() {
+  const response = await apiClient.get<ApiResponse<unknown>>(endpoints.assetRules)
+  return normalizeList<AssetRule>(getResponseData(response.data))
+}
+
+export async function saveAssetRule(payload: AssetRulePayload, existingId?: string) {
+  const response = existingId
+    ? await apiClient.put<ApiResponse<unknown>>(endpoints.assetRule(existingId), payload)
+    : await apiClient.post<ApiResponse<unknown>>(endpoints.assetRules, payload)
+  return toMutationResult(getResponseData(response.data), "保存成功")
+}
+
+export async function deleteAssetRule(rule: Pick<AssetRule, "_id">) {
+  const response = await apiClient.delete<ApiResponse<unknown> | undefined>(endpoints.assetRule(rule._id))
+  return toMutationResult(getResponseData(response.data), "删除成功")
 }
 
 export async function fetchNoticeMails() {

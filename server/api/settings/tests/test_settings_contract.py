@@ -369,6 +369,179 @@ def test_blacklist_delete_uses_path_value(client, monkeypatch):
     assert captured == {"delete_filters": {"text": "obsolete-secret"}}
 
 
+def test_asset_rules_get_returns_default_rules_when_not_configured(client, monkeypatch):
+    from api.settings import repository as setting
+
+    class FakeCursor:
+        def sort(self, field, direction):
+            return self
+
+        def __iter__(self):
+            return iter([])
+
+    class FakeSettingCollection:
+        def find(self, filters, projection):
+            return FakeCursor()
+
+    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
+
+    response = client.get("/api/v1/asset-rules")
+
+    assert response.status_code == 200
+    assert response.get_json()["data"] == [
+        {
+            "_id": "domain",
+            "name": "Domain",
+            "type": "domain",
+            "pattern": r"(?!\-)(?:[a-zA-Z\d\-]{0,62}[a-zA-Z\d]\.){1,126}(?!\d+)[a-zA-Z\d]{1,63}",
+            "enabled": True,
+            "builtin": True,
+        },
+        {
+            "_id": "email",
+            "name": "Email",
+            "type": "email",
+            "pattern": r"[\w!#$%&'*+/=?^_`{|}~-]+(?:\.[\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?",
+            "enabled": True,
+            "builtin": True,
+        },
+        {
+            "_id": "ip",
+            "name": "IP",
+            "type": "ip",
+            "pattern": r"(\d+\.\d+\.\d+\.\d+)",
+            "enabled": True,
+            "builtin": True,
+        },
+    ]
+
+
+def test_asset_rule_post_saves_custom_regex(client, monkeypatch):
+    from api.settings import repository as setting
+
+    captured = {}
+
+    class FakeSettingCollection:
+        def replace_one(self, filters, document, upsert=False):
+            captured["filters"] = filters
+            captured["document"] = dict(document)
+            captured["upsert"] = upsert
+
+    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
+
+    response = client.post(
+        "/api/v1/asset-rules",
+        json={"name": "AWS Key", "type": "secret", "pattern": r"AKIA[0-9A-Z]{16}", "enabled": True},
+    )
+
+    body = response.get_json()
+    assert response.status_code == 201
+    assert body["data"]["name"] == "AWS Key"
+    assert body["data"]["type"] == "secret"
+    assert body["data"]["pattern"] == r"AKIA[0-9A-Z]{16}"
+    assert body["data"]["enabled"] is True
+    assert body["data"]["builtin"] is False
+    assert captured["filters"] == {"key": "asset_rule", "_id": body["data"]["_id"]}
+    assert captured["document"]["key"] == "asset_rule"
+    assert captured["upsert"] is True
+
+
+def test_asset_rule_put_can_disable_builtin_rule(client, monkeypatch):
+    from api.settings import repository as setting
+
+    captured = {}
+
+    class FakeSettingCollection:
+        def replace_one(self, filters, document, upsert=False):
+            captured["filters"] = filters
+            captured["document"] = dict(document)
+            captured["upsert"] = upsert
+
+    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
+
+    response = client.put(
+        "/api/v1/asset-rules/email",
+        json={"name": "Email", "type": "email", "pattern": r"@", "enabled": False},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"] == {
+        "_id": "email",
+        "name": "Email",
+        "type": "email",
+        "pattern": r"@",
+        "enabled": False,
+        "builtin": True,
+    }
+    assert captured["filters"] == {"key": "asset_rule", "_id": "email"}
+    assert captured["document"]["key"] == "asset_rule"
+    assert captured["document"]["enabled"] is False
+
+
+def test_asset_rule_post_rejects_invalid_regex(client, monkeypatch):
+    from api.settings import repository as setting
+
+    class FakeSettingCollection:
+        def replace_one(self, filters, document, upsert=False):
+            raise AssertionError("invalid regex must not be saved")
+
+    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
+
+    response = client.post(
+        "/api/v1/asset-rules",
+        json={"name": "Broken", "type": "secret", "pattern": "(", "enabled": True},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "settings_error"
+    assert response.get_json()["message"].startswith("pattern is not a valid regular expression")
+
+
+def test_asset_rule_delete_uses_rule_id(client, monkeypatch):
+    from api.settings import repository as setting
+
+    captured = {}
+
+    class FakeSettingCollection:
+        def delete_one(self, filters):
+            captured["filters"] = filters
+            return FakeDeleteResult(1)
+
+    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
+
+    response = client.delete("/api/v1/asset-rules/custom-rule")
+
+    assert response.status_code == 204
+    assert captured == {"filters": {"key": "asset_rule", "_id": "custom-rule"}}
+
+
+def test_asset_rule_delete_can_hide_builtin_rule(client, monkeypatch):
+    from api.settings import repository as setting
+
+    captured = {}
+
+    class FakeSettingCollection:
+        def replace_one(self, filters, document, upsert=False):
+            captured["filters"] = filters
+            captured["document"] = dict(document)
+            captured["upsert"] = upsert
+
+        def delete_one(self, filters):
+            raise AssertionError("builtin rules should be hidden with a tombstone")
+
+    monkeypatch.setattr(setting, "setting_col", FakeSettingCollection())
+
+    response = client.delete("/api/v1/asset-rules/email")
+
+    assert response.status_code == 204
+    assert captured["filters"] == {"key": "asset_rule", "_id": "email"}
+    assert captured["document"]["key"] == "asset_rule"
+    assert captured["document"]["_id"] == "email"
+    assert captured["document"]["builtin"] is True
+    assert captured["document"]["deleted"] is True
+    assert captured["upsert"] is True
+
+
 def test_notification_recipients_get_returns_recipient_list(client, monkeypatch):
     from api.settings import repository as setting
 

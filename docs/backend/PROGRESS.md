@@ -22,6 +22,7 @@
 - 业务代码已按 domain/core/integrations/workers 边界组织，测试目录已按 domain/core/workers/harness 边界内聚。
 - 任务调度 minute 语义已在后端文档中收敛为 Huey 固定 tick + MongoDB `minute/next_due_at` 控制实际周期；`PUT /api/v1/task-schedules/current` 后新周期不依赖 SIGHUP 动态改 crontab。
 - 查询规则支持 `code` 和 `repositories` 两类 GitHub 检索，旧规则缺省按 `code` 兼容。
+- 资产提取规则支持通过设置 API 自定义；未配置时使用预置 domain、email 和 ip 正则规则，删除预置规则后会持久隐藏并退出扫描。
 
 ## 已完成
 
@@ -53,15 +54,12 @@
 
 ## 最近验证
 
+- `PYTHONPATH=server pytest -q` 通过，142 passed。
+- `PYTHONPATH=server python3 scripts/backend_openapi_check.py` 通过，覆盖 23 paths、34 operations。
+- `PYTHONPATH=server python3 scripts/backend_openapi_secret_scan.py` 通过，0 findings。
+- `PYTHONPATH=server python3 scripts/backend_route_coverage.py --check-registered-v1` 通过，23 个 runtime `/api/v1/*` routes 覆盖。
 - 2026-06-15 任务调度 minute 修复已验证：后端 pytest 131 passed，worker smoke、architecture guard、OpenAPI check 和 compose smoke 单测通过。
 - `python3 -m compileall -q scripts server` 通过。
-- `PYTHONPATH=server pytest -q` 通过，122 passed。
-- `PYTHONPATH=server python3 scripts/backend_openapi_check.py` 通过，覆盖 21 paths、30 operations。
-- `PYTHONPATH=server python3 scripts/backend_openapi_secret_scan.py` 通过，0 findings。
-- `PYTHONPATH=server python3 scripts/backend_route_coverage.py --check-registered-v1` 通过，21 个 runtime `/api/v1/*` paths 覆盖。
-- `cd client && npm run lint` 通过。
-- `cd client && npm run test -- --run` 通过，10 个 test files、24 tests。
-- `cd client && npm run build` 通过。
 - `git diff --check` 通过。
 - `NPM_CONFIG_REGISTRY=https://registry.npmjs.org python3 scripts/backend_compose_smoke.py --project-name skyradar-real-smoke --http-port 18081 --fresh-volumes --json` 通过，覆盖 build/up、MongoDB 8.2.7 ping/CRUD、Redis ping、API service 进程边界、`/api/v1/health`、静态首页、nginx 配置、worker 任务消费和日志 failure/secret scan。
 - `NPM_CONFIG_REGISTRY=https://registry.npmjs.org python3 scripts/backend_compose_smoke.py --project-name skyradar-real-smoke --http-port 18081 --fresh-volumes --no-build --keep-running --json` 通过，并用于后续浏览器 smoke。

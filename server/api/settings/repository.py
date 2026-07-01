@@ -84,6 +84,22 @@ def delete_blacklist(text):
     return blacklist_col.delete_many({"text": text})
 
 
+def list_asset_rules():
+    return list(setting_col.find({"key": "asset_rule"}, {"key": 0}).sort("type", 1))
+
+
+def save_asset_rule(document):
+    return setting_col.replace_one({"key": "asset_rule", "_id": document["_id"]}, document, upsert=True)
+
+
+def save_deleted_asset_rule(document):
+    return setting_col.replace_one({"key": "asset_rule", "_id": document["_id"]}, document, upsert=True)
+
+
+def delete_asset_rule(rule_id):
+    return setting_col.delete_one({"key": "asset_rule", "_id": rule_id})
+
+
 def list_notices():
     return list(notice_col.find({}, {"_id": 0}))
 

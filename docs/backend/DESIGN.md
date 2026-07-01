@@ -330,6 +330,7 @@ server/
 - 查询规则使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`；`search_type` 支持 `code` 和 `repositories`，缺省或旧数据按 `code` 处理。
 - 任务调度使用 `/api/v1/task-schedules/current`；`minute` 更新写入 MongoDB task setting 后由固定 tick worker 读取，实际调度周期由 `minute` 和 `next_due_at` 决定，不通过 SIGHUP 动态改 Huey crontab。
 - 黑名单使用 `/api/v1/blacklist-items` 和 `/api/v1/blacklist-items/{text}`。
+- 资产提取规则使用 `/api/v1/asset-rules` 和 `/api/v1/asset-rules/{rule_id}`；未配置时返回并使用预置 domain、email 和 ip 正则规则，配置后按预置规则加数据库覆盖/新增规则合并；删除预置规则会写入隐藏标记，后续列表和扫描不再合并该预置规则。
 - 邮件通知接收人使用 `/api/v1/notification-recipients` 和 `/api/v1/notification-recipients/{mail}`。
 - SMTP 配置使用 `/api/v1/mail-settings/current`；响应不得包含 SMTP password。
 - Webhook 配置使用 `/api/v1/webhooks` 和 `/api/v1/webhooks/{webhook_id}`；请求必须包含 `secret`，响应只返回脱敏 URL、稳定 ID 和 `has_secret`。

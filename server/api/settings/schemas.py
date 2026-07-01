@@ -24,6 +24,13 @@ class QueryPayload(BaseModel):
     enabled: bool = True
 
 
+class AssetRulePayload(BaseModel):
+    name: str | None = None
+    type: str | None = None
+    pattern: str | None = None
+    enabled: bool = True
+
+
 class MailPayload(BaseModel):
     from_: str | None = Field(default=None, alias="from")
     host: str | None = None

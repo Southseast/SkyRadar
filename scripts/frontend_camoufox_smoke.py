@@ -29,6 +29,7 @@ DEFAULT_PATHS = (
     "/setting",
     "/setting/github",
     "/setting/rule",
+    "/setting/asset",
     "/setting/task",
     "/setting/blacklist",
     "/setting/notice",

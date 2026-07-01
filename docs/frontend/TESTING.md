@@ -65,7 +65,7 @@
 - SPA fallback 可用。
 - `/api/v1/health` 可访问且子项符合预期。
 - `/api/v1/leakages`、`/api/v1/leakages/{id}`、`/api/v1/leakages/{id}/code` 只读链路可用。
-- `/api/v1/github-accounts`、`/api/v1/search-rules`、`/api/v1/task-schedules/current`、`/api/v1/blacklist-items`、`/api/v1/notification-recipients`、`/api/v1/mail-settings/current`、`/api/v1/webhooks` 只读链路可用。
+- `/api/v1/github-accounts`、`/api/v1/search-rules`、`/api/v1/asset-rules`、`/api/v1/task-schedules/current`、`/api/v1/blacklist-items`、`/api/v1/notification-recipients`、`/api/v1/mail-settings/current`、`/api/v1/webhooks` 只读链路可用。
 
 ## 测试数据
 

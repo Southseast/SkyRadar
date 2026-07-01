@@ -140,6 +140,15 @@ export interface BlacklistItem {
   text: string
 }
 
+export interface AssetRule {
+  _id: string
+  name: string
+  type: string
+  pattern: string
+  enabled: boolean
+  builtin?: boolean
+}
+
 export interface NoticeMail {
   mail: string
 }

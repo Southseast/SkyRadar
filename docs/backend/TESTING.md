@@ -47,6 +47,8 @@ P0 覆盖：
 - `DELETE /api/v1/github-accounts/{username}`
 - `GET/POST /api/v1/search-rules`
 - `PUT/DELETE /api/v1/search-rules/{tag}`
+- `GET/POST /api/v1/asset-rules`
+- `PUT/DELETE /api/v1/asset-rules/{rule_id}`
 - `GET/PUT /api/v1/task-schedules/current`
 - `GET/POST /api/v1/blacklist-items`
 - `DELETE /api/v1/blacklist-items/{text}`

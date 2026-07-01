@@ -12,6 +12,8 @@ export const endpoints = {
   leakageCode: (id: string) => `${resourceUrl("leakages", id)}/code`,
   blacklistItems: `${apiUri}/blacklist-items`,
   blacklistItem: (text: string) => resourceUrl("blacklist-items", text),
+  assetRules: `${apiUri}/asset-rules`,
+  assetRule: (ruleId: string) => resourceUrl("asset-rules", ruleId),
   searchRules: `${apiUri}/search-rules`,
   searchRule: (tag: string) => resourceUrl("search-rules", tag),
   taskScheduleCurrent: `${apiUri}/task-schedules/current`,

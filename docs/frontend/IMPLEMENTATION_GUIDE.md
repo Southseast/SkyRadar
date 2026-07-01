@@ -119,6 +119,7 @@ client/src/
 - `GET /api/v1/statistics` 使用 `by` 查询参数做 tag、language、security、ignore、project 等维度聚合，adapter 必须容忍空数组和未知语言。
 - GitHub 设置响应不得把原始 `password` 存入页面状态；adapter 必须删除后端写入或删除响应中可能出现的 `password` 字段。
 - Query 设置使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`；规则字段包含 `tag`、`keyword`、`search_type` 和 `enabled`，`search_type` 仅允许 `code` 或 `repositories`，缺省按 `code` 兼容；删除规则前端必须给出明确确认和反馈。
+- Asset rule 设置使用 `/api/v1/asset-rules` 和 `/api/v1/asset-rules/{rule_id}`；规则字段包含 `_id`、`name`、`type`、`pattern`、`enabled` 和 `builtin`，预置和自定义规则均可编辑、启停和删除。
 - Task schedule 使用 `/api/v1/task-schedules/current`；未配置时前端应展示默认值。
 - SMTP `password` 只允许作为输入值提交，不得从响应写回页面状态。
 - Webhook `POST` 和 webhook 测试请求必须提交 `secret`；Webhook `GET` 返回掩码 URL、稳定 `id` 和 `has_secret`，删除 webhook 时使用 `id`，避免携带完整 URL。

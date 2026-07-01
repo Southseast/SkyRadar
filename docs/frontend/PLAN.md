@@ -34,10 +34,11 @@
 | F003 | 设置页框架和页签 | Done | `/setting`, `/setting/:tab` | tab 可直达，切换同步 URL |
 | F004 | GitHub 账号设置 | Done | `/api/v1/github-accounts` | 账号列表、添加、删除、配额展示和敏感字段过滤可用 |
 | F005 | 查询规则设置 | Done | `/api/v1/search-rules` | 规则列表、添加、编辑、启停、删除和 GitHub 搜索链接可用 |
-| F006 | 任务调度设置 | Done | `/api/v1/task-schedules/current` | 读取默认值、保存扫描间隔和查询页数可用 |
-| F007 | 黑名单设置 | Done | `/api/v1/blacklist-items` | 黑名单列表、添加、删除和状态反馈可用 |
-| F008 | 通知设置 | Done | `/api/v1/notification-recipients`, `/api/v1/mail-settings/current`, `/api/v1/webhooks` | 收件人、SMTP、webhook 保存/删除/测试链路可用，secret 不展示 |
-| F009 | 部署切换准备 | Gate Pending | `client/dist`, `/api/v1/health`, SPA fallback | Docker/nginx 静态资源目标和 `/api` 代理已准备，正式发布仍需 release gate |
+| F006 | 资产提取规则设置 | Done | `/api/v1/asset-rules` | 预置 domain/email/ip 规则展示、添加自定义规则、编辑、启停和删除规则可用 |
+| F007 | 任务调度设置 | Done | `/api/v1/task-schedules/current` | 读取默认值、保存扫描间隔和查询页数可用 |
+| F008 | 黑名单设置 | Done | `/api/v1/blacklist-items` | 黑名单列表、添加、删除和状态反馈可用 |
+| F009 | 通知设置 | Done | `/api/v1/notification-recipients`, `/api/v1/mail-settings/current`, `/api/v1/webhooks` | 收件人、SMTP、webhook 保存/删除/测试链路可用，secret 不展示 |
+| F010 | 部署切换准备 | Gate Pending | `client/dist`, `/api/v1/health`, SPA fallback | Docker/nginx 静态资源目标和 `/api` 代理已准备，正式发布仍需 release gate |
 
 ## P0 验收规则
 

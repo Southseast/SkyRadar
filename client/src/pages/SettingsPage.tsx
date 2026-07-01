@@ -1,8 +1,9 @@
-import { Bell, Code2, Search, ShieldMinus, Timer } from "lucide-react"
+import { Bell, Code2, ListFilter, Search, ShieldMinus, Timer } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useParams } from "react-router-dom"
 
 import { Blacklist } from "@/features/settings/Blacklist"
+import { AssetRules } from "@/features/settings/AssetRules"
 import { GithubAccounts } from "@/features/settings/GithubAccounts"
 import { NoticeSettings } from "@/features/settings/NoticeSettings"
 import { QueryRules } from "@/features/settings/QueryRules"
@@ -19,6 +20,7 @@ const settingGroups = [
     label: "扫描",
     items: [
       { value: "rule", label: "查询规则", icon: Search },
+      { value: "asset", label: "资产规则", icon: ListFilter },
       { value: "task", label: "任务调度", icon: Timer },
       { value: "blacklist", label: "黑名单", icon: ShieldMinus },
     ],
@@ -43,6 +45,10 @@ const settingCopy: Record<string, { title: string; description: string }> = {
   task: {
     title: "任务调度",
     description: "设置自动扫描的时间间隔和每次查询页数。",
+  },
+  asset: {
+    title: "资产规则",
+    description: "配置用于提取域名、邮箱、IP 或自定义资产的正则规则。",
   },
   blacklist: {
     title: "黑名单",
@@ -162,6 +168,8 @@ function SettingPanel({ activeTab }: { activeTab: string }) {
       return <QueryRules />
     case "task":
       return <TaskSchedule />
+    case "asset":
+      return <AssetRules />
     case "blacklist":
       return <Blacklist />
     case "notice":

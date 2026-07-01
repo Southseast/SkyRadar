@@ -11,7 +11,7 @@ from api.settings import service as settings_service
 from core.responses import rest_error_response, rest_response
 
 from ..shared import InvalidQueryParameter, as_bool, as_int, request_params
-from .schemas import MailPayload, QueryPayload, WebhookPayload
+from .schemas import AssetRulePayload, MailPayload, QueryPayload, WebhookPayload
 
 
 router = APIRouter()
@@ -160,6 +160,57 @@ async def post_blacklist_item(request: Request):
 @router.delete("/api/v1/blacklist-items/{text:path}")
 async def delete_blacklist_item(text: str):
     response = await _run_service_response(settings_service.delete_blacklist_item, text)
+    if response.status_code != 200:
+        return response
+    return Response(status_code=204)
+
+
+@router.get("/api/v1/asset-rules")
+def get_asset_rules():
+    return _call_service_response(settings_service.get_asset_rules)
+
+
+@router.post("/api/v1/asset-rules")
+async def post_asset_rule(request: Request):
+    params = await request_params(request)
+    payload = AssetRulePayload(
+        name=params.get("name"),
+        type=params.get("type"),
+        pattern=params.get("pattern"),
+        enabled=as_bool(params, "enabled", True),
+    )
+    return await _run_service_response(
+        settings_service.create_asset_rule,
+        payload.name,
+        payload.type,
+        payload.pattern,
+        enabled=payload.enabled,
+        status_code=201,
+    )
+
+
+@router.put("/api/v1/asset-rules/{rule_id}")
+async def put_asset_rule(rule_id: str, request: Request):
+    params = await request_params(request)
+    payload = AssetRulePayload(
+        name=params.get("name"),
+        type=params.get("type"),
+        pattern=params.get("pattern"),
+        enabled=as_bool(params, "enabled", True),
+    )
+    return await _run_service_response(
+        settings_service.put_asset_rule,
+        rule_id,
+        payload.name,
+        payload.type,
+        payload.pattern,
+        enabled=payload.enabled,
+    )
+
+
+@router.delete("/api/v1/asset-rules/{rule_id}")
+async def delete_asset_rule(rule_id: str):
+    response = await _run_service_response(settings_service.delete_asset_rule, rule_id)
     if response.status_code != 200:
         return response
     return Response(status_code=204)
