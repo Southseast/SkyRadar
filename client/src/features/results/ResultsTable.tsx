@@ -63,7 +63,7 @@ export function ResultsTable({
 
   return (
     <div className="divide-y divide-border">
-      <div className="hidden gap-3 bg-surface-subtle px-4 py-2 text-xs font-semibold text-muted-foreground lg:grid lg:grid-cols-[2rem_8.5rem_8.5rem_minmax(10rem,1fr)_minmax(12rem,1.1fr)_5rem_6.5rem_5rem_13rem] lg:items-center">
+      <div className="hidden gap-3 bg-surface-subtle px-4 py-2 text-xs font-semibold text-muted-foreground lg:grid lg:grid-cols-[2rem_8.5rem_8.5rem_minmax(10rem,1fr)_minmax(12rem,1.1fr)_5rem_6.5rem_5rem_15rem] lg:items-center">
         <SelectionCheckbox
           ariaLabel={allSelected ? "取消选择本页泄露结果" : "选择本页泄露结果"}
           checked={allSelected}
@@ -89,7 +89,7 @@ export function ResultsTable({
         return (
           <article
             key={item._id}
-            className="grid gap-3 px-4 py-3 transition-colors hover:bg-hover-surface/60 lg:grid-cols-[2rem_8.5rem_8.5rem_minmax(10rem,1fr)_minmax(12rem,1.1fr)_5rem_6.5rem_5rem_13rem] lg:items-center"
+            className="grid gap-3 px-4 py-3 transition-colors hover:bg-hover-surface/60 lg:grid-cols-[2rem_8.5rem_8.5rem_minmax(10rem,1fr)_minmax(12rem,1.1fr)_5rem_6.5rem_5rem_15rem] lg:items-center"
           >
             <SelectionCheckbox
               ariaLabel={`选择 ${item.project || item._id}`}
@@ -100,11 +100,35 @@ export function ResultsTable({
             <div className="text-xs text-muted-foreground">{formatDateTime(item.datetime)}</div>
 
             <div className="min-w-0">
-              <span className="block truncate text-sm font-semibold">{item.project || "未知仓库"}</span>
+              {projectUrl ? (
+                <a
+                  className="inline-flex max-w-full items-center gap-1 text-sm font-semibold text-info hover:underline"
+                  href={projectUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  <span className="truncate">{item.project || "未知仓库"}</span>
+                  <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
+                </a>
+              ) : (
+                <span className="block truncate text-sm font-semibold">{item.project || "未知仓库"}</span>
+              )}
             </div>
 
             <div className="min-w-0">
-              <span className="block truncate text-xs text-muted-foreground">{item.filepath || item.filename || "未知文件"}</span>
+              {sourceUrl ? (
+                <a
+                  className="inline-flex max-w-full items-center gap-1 text-xs text-info hover:underline"
+                  href={sourceUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  <span className="truncate">{item.filepath || item.filename || "未知文件"}</span>
+                  <ExternalLink className="size-3.5 shrink-0" aria-hidden="true" />
+                </a>
+              ) : (
+                <span className="block truncate text-xs text-muted-foreground">{item.filepath || item.filename || "未知文件"}</span>
+              )}
             </div>
 
             <div className="text-sm text-muted-foreground lg:text-foreground">{item.language || "未知"}</div>
@@ -122,9 +146,10 @@ export function ResultsTable({
             <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" asChild>
+                  <Button variant="outline" size="sm" className="rounded-md" asChild>
                     <Link to={`/view/leakage/${item._id}`} aria-label="查看泄露详情代码">
                       <FileCode className="size-4" aria-hidden="true" />
+                      详情
                     </Link>
                   </Button>
                 </TooltipTrigger>
@@ -132,27 +157,17 @@ export function ResultsTable({
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" disabled={!sourceUrl} asChild={Boolean(sourceUrl)}>
-                    {sourceUrl ? (
-                      <a href={sourceUrl} target="_blank" rel="noreferrer noopener" aria-label="GitHub 源代码">
-                        <ExternalLink className="size-4" aria-hidden="true" />
-                      </a>
-                    ) : (
-                      <ExternalLink className="size-4" aria-hidden="true" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>GitHub 源代码</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" disabled={!quickCheckUrl} asChild={Boolean(quickCheckUrl)}>
+                  <Button variant="outline" size="sm" className="rounded-md" disabled={!quickCheckUrl} asChild={Boolean(quickCheckUrl)}>
                     {quickCheckUrl ? (
                       <a href={quickCheckUrl} target="_blank" rel="noreferrer noopener" aria-label="快速排查">
                         <Search className="size-4" aria-hidden="true" />
+                        排查
                       </a>
                     ) : (
-                      <Search className="size-4" aria-hidden="true" />
+                      <>
+                        <Search className="size-4" aria-hidden="true" />
+                        排查
+                      </>
                     )}
                   </Button>
                 </TooltipTrigger>

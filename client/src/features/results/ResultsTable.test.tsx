@@ -25,7 +25,7 @@ const leakage: Leakage = {
 }
 
 describe("ResultsTable", () => {
-  it("renders separate actions for leakage detail code and GitHub source", () => {
+  it("renders leakage detail action and direct repository/file source links", () => {
     render(
       <MemoryRouter>
         <TooltipProvider>
@@ -42,36 +42,11 @@ describe("ResultsTable", () => {
     )
 
     expect(screen.getByRole("link", { name: "查看泄露详情代码" })).toHaveAttribute("href", "/view/leakage/leakage-1")
-    expect(screen.getByRole("link", { name: "GitHub 源代码" })).toHaveAttribute(
-      "href",
-      "https://github.com/acme/skyradar/blob/main/secret.py",
-    )
-  })
-
-  it("keeps repository and file labels as static text", () => {
-    render(
-      <MemoryRouter>
-        <TooltipProvider>
-          <ResultsTable
-            results={[leakage]}
-            loading={false}
-            onMarkIgnored={vi.fn()}
-            selectedIds={new Set()}
-            onToggleSelection={vi.fn()}
-            onTogglePageSelection={vi.fn()}
-          />
-        </TooltipProvider>
-      </MemoryRouter>,
-    )
-
-    expect(screen.getByText("发现时间")).toBeInTheDocument()
-    expect(screen.getByText("更新时间")).toBeInTheDocument()
     expect(screen.getByText("仓库")).toBeInTheDocument()
     expect(screen.getByText("文件")).toBeInTheDocument()
-    expect(screen.getByText("acme/skyradar")).toBeInTheDocument()
-    expect(screen.getByText("secret.py")).toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "acme/skyradar" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("link", { name: "secret.py" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "acme/skyradar" })).toHaveAttribute("href", "https://github.com/acme/skyradar")
+    expect(screen.getByRole("link", { name: "secret.py" })).toHaveAttribute("href", "https://github.com/acme/skyradar/blob/main/secret.py")
+    expect(screen.queryByRole("link", { name: "GitHub 源代码" })).not.toBeInTheDocument()
   })
 
   it("emits selection changes for row and current page checkboxes", async () => {
