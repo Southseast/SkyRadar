@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { apiClient } from "@/lib/api/client"
 import { endpoints } from "@/lib/api/endpoints"
-import { fetchLeakageCode, fetchLeakages, fetchTrend, patchLeakage, patchLeakageDetail } from "@/lib/api/results"
+import { fetchLeakageCode, fetchLeakages, fetchTrend, patchLeakage, patchLeakageDetail, triggerLeakageAIAnalysis } from "@/lib/api/results"
 
 describe("results api adapter", () => {
   afterEach(() => {
@@ -127,6 +127,20 @@ describe("results api adapter", () => {
       ignored: false,
       desc: "已确认",
     })
+  })
+
+  it("posts leakage AI analysis rerun requests", async () => {
+    const postSpy = vi.spyOn(apiClient, "post").mockResolvedValue({
+      data: {
+        data: { id: "leakage-1", ai_analysis: { status: "pending" } },
+      },
+    } as AxiosResponse)
+
+    await expect(triggerLeakageAIAnalysis("leakage-1")).resolves.toEqual({
+      data: { id: "leakage-1", ai_analysis: { status: "pending" } },
+      message: "已提交分析",
+    })
+    expect(postSpy).toHaveBeenCalledWith(endpoints.leakageAIAnalysis("leakage-1"))
   })
 
   it("returns stable trend defaults when nested fields are missing", async () => {

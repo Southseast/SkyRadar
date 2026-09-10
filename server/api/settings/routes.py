@@ -7,11 +7,12 @@
 from fastapi import APIRouter, Request, Response
 from fastapi.concurrency import run_in_threadpool
 
+from api.ai_analysis import service as ai_analysis_service
 from api.settings import service as settings_service
 from core.responses import rest_error_response, rest_response
 
 from ..shared import InvalidQueryParameter, as_bool, as_int, request_params
-from .schemas import AssetRulePayload, MailPayload, QueryPayload, WebhookPayload
+from .schemas import AssetRulePayload, MailPayload, OpenAISettingPayload, QueryPayload, WebhookPayload
 
 
 router = APIRouter()
@@ -19,6 +20,10 @@ router = APIRouter()
 
 def _handle_service_error(error):
     return rest_error_response("settings_error", error.message, status_code=error.status_code)
+
+
+def _handle_openai_setting_error(error):
+    return rest_error_response("openai_setting_error", error.message, status_code=error.status_code)
 
 
 def _handle_invalid_query_parameter(error):
@@ -89,6 +94,7 @@ async def post_search_rule(request: Request):
         tag=params.get("tag"),
         search_type=params.get("search_type"),
         enabled=as_bool(params, "enabled", True),
+        analysis_enabled=as_bool(params, "analysis_enabled", False),
     )
     return await _run_service_response(
         settings_service.create_search_rule,
@@ -96,6 +102,7 @@ async def post_search_rule(request: Request):
         payload.tag,
         search_type=payload.search_type,
         enabled=payload.enabled,
+        analysis_enabled=payload.analysis_enabled,
         status_code=201,
     )
 
@@ -108,6 +115,7 @@ async def put_search_rule(tag: str, request: Request):
         tag=tag,
         search_type=params.get("search_type"),
         enabled=as_bool(params, "enabled", True),
+        analysis_enabled=as_bool(params, "analysis_enabled", False),
     )
     return await _run_service_response(
         settings_service.put_search_rule,
@@ -115,6 +123,7 @@ async def put_search_rule(tag: str, request: Request):
         payload.keyword,
         search_type=payload.search_type,
         enabled=payload.enabled,
+        analysis_enabled=payload.analysis_enabled,
     )
 
 
@@ -129,6 +138,36 @@ async def delete_search_rule(tag: str):
 @router.get("/api/v1/task-schedules/current")
 def get_task_settings():
     return _call_service_response(settings_service.get_task_settings)
+
+
+@router.get("/api/v1/openai-settings/current")
+def get_openai_settings():
+    return rest_response(ai_analysis_service.public_openai_setting())
+
+
+@router.put("/api/v1/openai-settings/current")
+async def put_openai_settings(request: Request):
+    params = await request_params(request)
+    payload = OpenAISettingPayload(
+        enabled=as_bool(params, "enabled", False),
+        api_key=params.get("api_key"),
+        base_url=params.get("base_url"),
+        model=params.get("model"),
+        prompt=params.get("prompt"),
+        notify_webhook_on_useful=as_bool(params, "notify_webhook_on_useful", False),
+        usefulness_prompt=params.get("usefulness_prompt"),
+        interests=params.get("interests"),
+        max_context_lines=params.get("max_context_lines"),
+        max_context_chars=params.get("max_context_chars"),
+        timeout_seconds=params.get("timeout_seconds"),
+        max_retries=params.get("max_retries"),
+        concurrency=params.get("concurrency"),
+    )
+    try:
+        result = await run_in_threadpool(ai_analysis_service.save_openai_setting, payload.model_dump())
+    except ai_analysis_service.OpenAISettingError as error:
+        return _handle_openai_setting_error(error)
+    return rest_response(result)
 
 
 @router.put("/api/v1/task-schedules/current")

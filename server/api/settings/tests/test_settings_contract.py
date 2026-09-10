@@ -133,6 +133,64 @@ def test_task_settings_put_rejects_invalid_integer_without_500(client):
     }
 
 
+def test_openai_settings_put_saves_api_key_but_get_masks_it(client, monkeypatch):
+    from api.ai_analysis import repository as ai_repository
+
+    stored_document = {}
+    captured = {}
+
+    class FakeSettingCollection:
+        def find_one(self, filters):
+            captured.setdefault("find_filters", []).append(filters)
+            return dict(stored_document) if stored_document else None
+
+        def replace_one(self, filters, document, upsert=False):
+            captured["replace_filters"] = filters
+            captured["document"] = dict(document)
+            captured["upsert"] = upsert
+            stored_document.clear()
+            stored_document.update(document)
+
+    monkeypatch.setattr(ai_repository, "setting_col", FakeSettingCollection())
+
+    response = client.put(
+        "/api/v1/openai-settings/current",
+        json={
+            "enabled": True,
+            "api_key": "sk-test-secret-value",
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+            "prompt": "分析泄露",
+            "notify_webhook_on_useful": True,
+            "usefulness_prompt": "判断项目是否值得关注",
+            "interests": "浏览器指纹与自动化规避",
+            "max_context_lines": 50,
+            "max_context_chars": 6000,
+            "timeout_seconds": 20,
+            "max_retries": 1,
+            "concurrency": 3,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["replace_filters"] == {"key": "openai"}
+    assert captured["document"]["api_key"] == "sk-test-secret-value"
+    body = response.get_json()["data"]
+    assert body["enabled"] is True
+    assert body["has_api_key"] is True
+    assert body["mask_api_key"] == "sk-t****alue"
+    assert body["notify_webhook_on_useful"] is True
+    assert body["usefulness_prompt"] == "判断项目是否值得关注"
+    assert body["interests"] == "浏览器指纹与自动化规避"
+    assert "api_key" not in body
+
+    get_response = client.get("/api/v1/openai-settings/current")
+
+    assert get_response.status_code == 200
+    assert get_response.get_json()["data"]["has_api_key"] is True
+    assert "api_key" not in get_response.get_json()["data"]
+
+
 def test_search_rules_get_sorts_enabled_desc(client, monkeypatch):
     from api.settings import repository as setting
 
@@ -156,8 +214,15 @@ def test_search_rules_get_sorts_enabled_desc(client, monkeypatch):
     assert response.status_code == 200
     assert response.get_json() == {
         "data": [
-            {"_id": "query-1", "keyword": "token", "tag": "token", "search_type": "code", "enabled": True},
-            {"_id": "query-2", "keyword": "key", "tag": "key", "search_type": "repositories", "enabled": False},
+            {"_id": "query-1", "keyword": "token", "tag": "token", "search_type": "code", "enabled": True, "analysis_enabled": False},
+            {
+                "_id": "query-2",
+                "keyword": "key",
+                "tag": "key",
+                "search_type": "repositories",
+                "enabled": False,
+                "analysis_enabled": False,
+            },
         ]
     }
     assert captured["filters"] == {}
@@ -181,7 +246,13 @@ def test_search_rule_post_inserts_new_rule(client, monkeypatch):
 
     response = client.post(
         "/api/v1/search-rules",
-        json={"keyword": "github token", "tag": "github-token", "search_type": "repositories", "enabled": True},
+        json={
+            "keyword": "github token",
+            "tag": "github-token",
+            "search_type": "repositories",
+            "enabled": True,
+            "analysis_enabled": True,
+        },
     )
 
     body = response.get_json()
@@ -191,6 +262,7 @@ def test_search_rule_post_inserts_new_rule(client, monkeypatch):
     assert body["data"]["tag"] == "github-token"
     assert body["data"]["search_type"] == "repositories"
     assert body["data"]["enabled"] is True
+    assert body["data"]["analysis_enabled"] is True
     assert "_id" in body["data"]
     assert captured["count_filters"] == {"tag": "github-token"}
 
@@ -219,6 +291,7 @@ def test_search_rule_post_accepts_form_urlencoded(client, monkeypatch):
     assert response.get_json()["data"]["tag"] == "github-token-form"
     assert response.get_json()["data"]["search_type"] == "code"
     assert response.get_json()["data"]["enabled"] is True
+    assert response.get_json()["data"]["analysis_enabled"] is False
     assert captured["count_filters"] == {"tag": "github-token-form"}
 
 
@@ -264,17 +337,29 @@ def test_search_rule_put_updates_existing_rule(client, monkeypatch):
 
     response = client.put(
         "/api/v1/search-rules/github-token",
-        json={"keyword": "changed token", "search_type": "repositories", "enabled": False},
+        json={"keyword": "changed token", "search_type": "repositories", "enabled": False, "analysis_enabled": True},
     )
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "data": {"keyword": "changed token", "tag": "github-token", "search_type": "repositories", "enabled": False}
+        "data": {
+            "keyword": "changed token",
+            "tag": "github-token",
+            "search_type": "repositories",
+            "enabled": False,
+            "analysis_enabled": True,
+        }
     }
     assert captured["count_filters"] == {"tag": "github-token"}
     assert captured["update_filters"] == {"tag": "github-token"}
     assert captured["update"] == {
-        "$set": {"keyword": "changed token", "tag": "github-token", "search_type": "repositories", "enabled": False}
+        "$set": {
+            "keyword": "changed token",
+            "tag": "github-token",
+            "search_type": "repositories",
+            "enabled": False,
+            "analysis_enabled": True,
+        }
     }
 
 

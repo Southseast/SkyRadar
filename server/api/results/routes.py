@@ -87,3 +87,15 @@ def patch_leakage(leakage_id: str, payload: LeakagePatchPayload):
     except results_service.LeakageResultNotFound:
         return _not_found_response(leakage_id)
     return rest_response(result)
+
+
+@router.post("/api/v1/leakages/{leakage_id}/ai-analysis")
+def post_leakage_ai_analysis(leakage_id: str):
+    try:
+        result = results_service.trigger_ai_analysis(leakage_id)
+    except results_service.LeakageResultNotFound:
+        return _not_found_response(leakage_id)
+    from workers.analysis_tasks import analyze_leakage
+
+    analyze_leakage.schedule(args=(leakage_id, True))
+    return rest_response(result, status_code=202)

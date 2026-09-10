@@ -232,6 +232,31 @@ paths:
                   leakage: /api/v1/leakages/leak-001
         "404":
           $ref: "#/components/responses/NotFound"
+  /api/v1/leakages/{leakage_id}/ai-analysis:
+    post:
+      tags:
+        - Leakages
+      summary: 重新投递单条泄露 AI 分析
+      description: 仅提交异步分析任务；AI 分析失败不会影响泄露结果保存或通知链路。
+      operationId: createLeakageAIAnalysis
+      parameters:
+        - $ref: "#/components/parameters/LeakageId"
+      responses:
+        "202":
+          description: 单条 AI 分析任务已提交。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeakageAIAnalysisSuccess"
+              example:
+                data:
+                  id: leak-001
+                  ai_analysis:
+                    status: pending
+                meta: {}
+                links: {}
+        "404":
+          $ref: "#/components/responses/NotFound"
   /api/v1/trends:
     get:
       tags:
@@ -374,6 +399,7 @@ paths:
               tag: github-token
               search_type: code
               enabled: true
+              analysis_enabled: false
       responses:
         "201":
           description: 监控规则已创建。
@@ -458,6 +484,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TaskScheduleSuccess"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/openai-settings/current:
+    get:
+      tags:
+        - Settings
+      summary: 获取 OpenAI 分析配置
+      description: 响应不会返回明文 API Key，只返回是否已配置和脱敏值。
+      operationId: getOpenAISetting
+      responses:
+        "200":
+          description: OpenAI 分析配置。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenAISettingSuccess"
+    put:
+      tags:
+        - Settings
+      summary: 保存 OpenAI 分析配置
+      operationId: replaceOpenAISetting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenAISettingRequest"
+            example:
+              enabled: true
+              api_key: sk-...
+              base_url: https://api.openai.com/v1
+              model: gpt-4o-mini
+              prompt: 请简要分析泄露风险
+              notify_webhook_on_useful: true
+              usefulness_prompt: 判断项目是否符合关注方向并值得推送
+              interests: 浏览器指纹与自动化规避
+              max_context_lines: 120
+              max_context_chars: 12000
+              timeout_seconds: 30
+              max_retries: 2
+              concurrency: 2
+      responses:
+        "200":
+          description: OpenAI 分析配置已保存，响应不返回明文 API Key。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenAISettingSuccess"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "422":
           $ref: "#/components/responses/ValidationError"
   /api/v1/blacklist-items:
@@ -1025,6 +1101,8 @@ components:
         discovered_timestamp:
           type: number
           description: SkyRadar 发现时间的 Unix timestamp。
+        ai_analysis:
+          $ref: "#/components/schemas/AIAnalysis"
     LeakageUpdateRequest:
       type: object
       required:
@@ -1061,6 +1139,67 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AffectedAsset"
+    LeakageAIAnalysisSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              type: object
+              required:
+                - id
+                - ai_analysis
+              properties:
+                id:
+                  type: string
+                ai_analysis:
+                  $ref: "#/components/schemas/AIAnalysis"
+    AIAnalysis:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - pending
+            - running
+            - success
+            - failed
+            - skipped
+        risk_level:
+          type: string
+          enum:
+            - low
+            - medium
+            - high
+            - unknown
+        summary:
+          type: string
+        evidence:
+          type: array
+          items:
+            type: string
+        recommendation:
+          type: string
+        false_positive_reason:
+          type: string
+        is_useful:
+          type: boolean
+          description: AI 是否判断该项目或命中结果值得推送 webhook。
+        usefulness_reason:
+          type: string
+        matched_interests:
+          type: array
+          items:
+            type: string
+        model:
+          type: string
+        analyzed_at:
+          type: string
+          format: date-time
+        error:
+          type: string
     AffectedAsset:
       type: object
       additionalProperties: true
@@ -1199,6 +1338,7 @@ components:
         - search_type
         - tag
         - enabled
+        - analysis_enabled
       properties:
         _id:
           type: string
@@ -1214,6 +1354,9 @@ components:
           type: string
         enabled:
           type: boolean
+        analysis_enabled:
+          type: boolean
+          description: 命中并保存结果后是否自动触发 AI 分析。
     QueryRuleRequest:
       type: object
       required:
@@ -1233,6 +1376,121 @@ components:
         enabled:
           type: boolean
           default: true
+        analysis_enabled:
+          type: boolean
+          default: false
+          description: 默认关闭；开启后扫描命中该规则时异步投递 AI 分析。
+    OpenAISettingSuccess:
+      allOf:
+        - $ref: "#/components/schemas/ApiSuccess"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/OpenAISetting"
+    OpenAISetting:
+      type: object
+      required:
+        - enabled
+        - has_api_key
+        - base_url
+        - model
+        - prompt
+        - notify_webhook_on_useful
+        - usefulness_prompt
+        - interests
+        - max_context_lines
+        - max_context_chars
+        - timeout_seconds
+        - max_retries
+        - concurrency
+      properties:
+        enabled:
+          type: boolean
+        has_api_key:
+          type: boolean
+        mask_api_key:
+          type: string
+          description: 脱敏 API Key；GET 响应不返回明文 API Key。
+        base_url:
+          type: string
+          format: uri
+        model:
+          type: string
+        prompt:
+          type: string
+        notify_webhook_on_useful:
+          type: boolean
+          description: 开启后，启用 AI 分析的规则命中不会立即发 webhook；只有 AI 判断有用才推送 webhook。
+        usefulness_prompt:
+          type: string
+          description: 项目有用性判断 prompt 文本。
+        interests:
+          type: string
+          description: 用户关注兴趣和标题质量要求文本。
+        max_context_lines:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        max_context_chars:
+          type: integer
+          minimum: 100
+          maximum: 200000
+        timeout_seconds:
+          type: integer
+          minimum: 1
+          maximum: 300
+        max_retries:
+          type: integer
+          minimum: 0
+          maximum: 10
+        concurrency:
+          type: integer
+          minimum: 1
+          maximum: 10
+    OpenAISettingRequest:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          default: false
+        api_key:
+          type: string
+          format: password
+          writeOnly: true
+        base_url:
+          type: string
+          format: uri
+        model:
+          type: string
+        prompt:
+          type: string
+        notify_webhook_on_useful:
+          type: boolean
+          default: false
+        usefulness_prompt:
+          type: string
+        interests:
+          type: string
+        max_context_lines:
+          type: integer
+          minimum: 1
+          maximum: 1000
+        max_context_chars:
+          type: integer
+          minimum: 100
+          maximum: 200000
+        timeout_seconds:
+          type: integer
+          minimum: 1
+          maximum: 300
+        max_retries:
+          type: integer
+          minimum: 0
+          maximum: 10
+        concurrency:
+          type: integer
+          minimum: 1
+          maximum: 10
     TaskScheduleSuccess:
       allOf:
         - $ref: "#/components/schemas/ApiSuccess"

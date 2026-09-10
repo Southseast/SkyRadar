@@ -1,4 +1,4 @@
-import { Bell, Code2, ListFilter, Search, ShieldMinus, Timer } from "lucide-react"
+import { Bell, Bot, Code2, ListFilter, Search, ShieldMinus, Timer } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useParams } from "react-router-dom"
 
@@ -6,6 +6,7 @@ import { Blacklist } from "@/features/settings/Blacklist"
 import { AssetRules } from "@/features/settings/AssetRules"
 import { GithubAccounts } from "@/features/settings/GithubAccounts"
 import { NoticeSettings } from "@/features/settings/NoticeSettings"
+import { OpenAISettings } from "@/features/settings/OpenAISettings"
 import { QueryRules } from "@/features/settings/QueryRules"
 import { SettingsSubhead } from "@/features/settings/SettingsSection"
 import { TaskSchedule } from "@/features/settings/TaskSchedule"
@@ -28,6 +29,10 @@ const settingGroups = [
   {
     label: "通知",
     items: [{ value: "notice", label: "Webhook 通知", icon: Bell }],
+  },
+  {
+    label: "AI",
+    items: [{ value: "openai", label: "OpenAI 分析", icon: Bot }],
   },
 ]
 
@@ -57,6 +62,10 @@ const settingCopy: Record<string, { title: string; description: string }> = {
   notice: {
     title: "Webhook 通知",
     description: "配置告警通知的接收人、SMTP 和群机器人 webhook。",
+  },
+  openai: {
+    title: "OpenAI 分析",
+    description: "配置扫描命中后的自动 AI 简析能力和全局上下文窗口。",
   },
 }
 
@@ -174,6 +183,8 @@ function SettingPanel({ activeTab }: { activeTab: string }) {
       return <Blacklist />
     case "notice":
       return <NoticeSettings />
+    case "openai":
+      return <OpenAISettings />
     case "github":
     default:
       return <GithubAccounts />

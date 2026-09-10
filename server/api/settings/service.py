@@ -66,6 +66,7 @@ def normalize_search_type(value):
 def public_search_rule(rule):
     public_rule = dict(rule)
     public_rule["search_type"] = normalize_search_type(public_rule.get("search_type"))
+    public_rule["analysis_enabled"] = bool(public_rule.get("analysis_enabled", False))
     return public_rule
 
 
@@ -149,25 +150,37 @@ def get_search_rules():
     return [public_search_rule(rule) for rule in setting_repository.list_queries()]
 
 
-def create_search_rule(keyword, tag, search_type=None, enabled=True):
+def create_search_rule(keyword, tag, search_type=None, enabled=True, analysis_enabled=False):
     keyword = _require_text(keyword, "keyword")
     tag = _require_text(tag, "tag")
     search_type = normalize_search_type(search_type)
     if setting_repository.query_exists(tag):
         raise SettingsServiceError(409, "search rule tag already exists")
-    document = {"keyword": keyword, "tag": tag, "search_type": search_type, "enabled": enabled}
+    document = {
+        "keyword": keyword,
+        "tag": tag,
+        "search_type": search_type,
+        "enabled": enabled,
+        "analysis_enabled": bool(analysis_enabled),
+    }
     document["_id"] = hashlib.md5("".join([str(value) for value in document.values()]).encode("utf-8")).hexdigest()
     setting_repository.insert_query(document)
     return document
 
 
-def put_search_rule(tag, keyword, search_type=None, enabled=True):
+def put_search_rule(tag, keyword, search_type=None, enabled=True, analysis_enabled=False):
     tag = _require_text(tag, "tag")
     keyword = _require_text(keyword, "keyword")
     search_type = normalize_search_type(search_type)
     if not setting_repository.query_exists(tag):
         raise SettingsServiceError(404, "search rule was not found")
-    values = {"keyword": keyword, "tag": tag, "search_type": search_type, "enabled": enabled}
+    values = {
+        "keyword": keyword,
+        "tag": tag,
+        "search_type": search_type,
+        "enabled": enabled,
+        "analysis_enabled": bool(analysis_enabled),
+    }
     setting_repository.update_query(tag, values)
     return values
 

@@ -29,6 +29,7 @@ DEFAULT_PATHS = (
     "/setting",
     "/setting/github",
     "/setting/rule",
+    "/setting/openai",
     "/setting/asset",
     "/setting/task",
     "/setting/blacklist",

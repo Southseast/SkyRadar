@@ -26,6 +26,8 @@
 - `NoticeRecipient`
 - `MailSetting`
 - `WebhookSetting`
+- `OpenAISetting`
+- `AIAnalysis`
 - `ApiResponse<T>`
 - `PaginatedResponse<T>`
 
@@ -112,13 +114,15 @@ client/src/
 - `GET /api/v1/leakages/{leakage_id}` 读取详情元信息，adapter 需要容忍缺失字段和空值。
 - `PATCH /api/v1/leakages/{leakage_id}` 提交 `security`、`ignored`、`desc` 和可选 `project`。
 - `GET /api/v1/leakages/{leakage_id}/code` 返回 `code` 和 `affect`，前端负责展示，并支持长行、空内容和解码失败状态。
+- `POST /api/v1/leakages/{leakage_id}/ai-analysis` 只提交单条重新分析任务；成功后页面可把本地 `ai_analysis.status` 暂置为 `pending`，不得假定分析已完成。
 
 统计和设置接口：
 
 - `GET /api/v1/trends` 提供仪表盘总览和任务运行信息。
 - `GET /api/v1/statistics` 使用 `by` 查询参数做 tag、language、security、ignore、project 等维度聚合，adapter 必须容忍空数组和未知语言。
 - GitHub 设置响应不得把原始 `password` 存入页面状态；adapter 必须删除后端写入或删除响应中可能出现的 `password` 字段。
-- Query 设置使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`；规则字段包含 `tag`、`keyword`、`search_type` 和 `enabled`，`search_type` 仅允许 `code` 或 `repositories`，缺省按 `code` 兼容；删除规则前端必须给出明确确认和反馈。
+- Query 设置使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`；规则字段包含 `tag`、`keyword`、`search_type`、`enabled` 和 `analysis_enabled`，`search_type` 仅允许 `code` 或 `repositories`，缺省按 `code` 兼容，`analysis_enabled` 缺省按关闭处理；删除规则前端必须给出明确确认和反馈。
+- OpenAI 分析设置使用 `/api/v1/openai-settings/current`；响应只消费 `has_api_key` 和 `mask_api_key`，不得把明文 `api_key` 写入页面状态；保存时空 API Key 不应覆盖后端已有密钥。页面支持配置 `notify_webhook_on_useful`、`usefulness_prompt` 和 `interests`，prompt/interest 直接以文本编辑和保存。
 - Asset rule 设置使用 `/api/v1/asset-rules` 和 `/api/v1/asset-rules/{rule_id}`；规则字段包含 `_id`、`name`、`type`、`pattern`、`enabled` 和 `builtin`，预置和自定义规则均可编辑、启停和删除。
 - Task schedule 使用 `/api/v1/task-schedules/current`；未配置时前端应展示默认值。
 - SMTP `password` 只允许作为输入值提交，不得从响应写回页面状态。
@@ -160,6 +164,8 @@ SkyRadar 会处理开源项目匹配内容和凭据配置，前端不能扩大�
 - GitHub token/password 只展示后端返回的脱敏字段。
 - SMTP password 不在 UI 中明文展示。
 - 不把敏感字段写入 console。
+- OpenAI API Key 输入框只用于提交，不从 GET 响应回填明文；页面只展示脱敏值或已配置状态。
+- AI 分析结果只作为辅助信息展示，不自动改变用户处理状态。
 - 外链 `target="_blank"` 必须带 `rel="noreferrer noopener"`。
 - 展示泄露代码时按文本处理，不使用 `dangerouslySetInnerHTML`。
 - 从后端返回的链接用于跳转前，应保持最小信任，不做 HTML 注入。

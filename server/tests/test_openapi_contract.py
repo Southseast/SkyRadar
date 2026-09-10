@@ -18,6 +18,7 @@ EXPECTED_RUNTIME_PATHS = {
     "/api/v1/docs",
     "/api/v1/leakages",
     "/api/v1/leakages/{leakage_id}",
+    "/api/v1/leakages/{leakage_id}/ai-analysis",
     "/api/v1/leakages/{leakage_id}/code",
     "/api/v1/trends",
     "/api/v1/statistics",
@@ -25,6 +26,7 @@ EXPECTED_RUNTIME_PATHS = {
     "/api/v1/github-accounts/{username}",
     "/api/v1/search-rules",
     "/api/v1/search-rules/{tag}",
+    "/api/v1/openai-settings/current",
     "/api/v1/task-schedules/current",
     "/api/v1/blacklist-items",
     "/api/v1/blacklist-items/{text:path}",
@@ -62,6 +64,10 @@ def _registered_api_paths():
     return paths
 
 
+def _openapi_path(path):
+    return path.replace("{text:path}", "{text}")
+
+
 def test_openapi_yaml_is_parseable():
     schema = yaml.safe_load(OPENAPI_PATH.read_text(encoding="utf-8"))
 
@@ -69,6 +75,14 @@ def test_openapi_yaml_is_parseable():
     assert schema["info"]["title"] == "SkyRadar REST API"
     assert isinstance(schema["paths"], dict)
     assert schema["paths"]
+
+
+def test_openapi_yaml_documents_runtime_paths():
+    schema = yaml.safe_load(OPENAPI_PATH.read_text(encoding="utf-8"))
+    documented_paths = set(schema["paths"])
+    registered_paths = {_openapi_path(path) for path in _registered_api_paths()}
+
+    assert registered_paths <= documented_paths
 
 
 def test_registered_api_paths_match_final_rest_v1_contract():

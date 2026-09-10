@@ -30,6 +30,7 @@ DEFAULT_BASE_URL = "http://127.0.0.1:18080"
 DEFAULT_SETTING_PATHS = (
     "/api/v1/github-accounts",
     "/api/v1/search-rules",
+    "/api/v1/openai-settings/current",
     "/api/v1/asset-rules",
     "/api/v1/task-schedules/current",
     "/api/v1/blacklist-items",

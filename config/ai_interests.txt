@@ -1,0 +1,21 @@
+下面是我要关注的内容：
+
+1. GitHub 项目优先级：优先关注新开源项目、近期活跃项目、PoC、patch、issue、release、benchmark、真实样本、检测规则、复现代码和工程化工具；普通文章搬运、课程作业、模板项目和营销仓库默认低优先级。
+2. 逆向与补环境：重点关注 reverse engineering、binary analysis、static analysis、dynamic analysis、decompiler、disassembler、JS 逆向、JSVMP、WASM 逆向、VMP 还原、字节码追踪、opcode dispatch、补环境、扣代码、算法还原、参数签名、协议逆向、抓包分析、瑞数 VMP/Cookie 等项目。
+3. 浏览器指纹与自动化规避：关注 Chrome、Chromium、Firefox、Gecko、WebKit、Blink、V8、CDP、Runtime.enable、WebDriver BiDi、Playwright、Puppeteer、Selenium、Chromedriver、headless、stealth、navigator.webdriver、CDP leak、CDP hook、CDP breakpoint、浏览器环境补全和自动化检测绕过。
+4. 反检测浏览器与多账号环境：关注 anti-detect browser、fingerprint browser、profile isolation、多账号浏览器、浏览器配置文件隔离、指纹注入、指纹切换、Canvas/WebGL/UA/时区/语言伪装，以及 Camoufox、CloakBrowser、Rebrowser、Patchright、undetected-chromedriver、nodriver、botasaurus、botright、zendriver、browserforge、fingerprint-injector 等工具。
+5. 协议指纹与网络层风控：关注 TLS、JA3、JA4、JA4H、JA4X、JARM、HTTP/2、HTTP/3、QUIC、ALPN、header order、cipher suites、curl-impersonate、curl_cffi、uTLS、CycleTLS、tls-client、TLS 指纹伪造、HTTP/2 指纹和代理质量/IP 风险画像。
+6. 移动端逆向与客户端完整性：关注 Android、iOS、APK、DEX、Smali、JNI、Mach-O、ELF、Frida、IDA、Ghidra、Jadx、JEB、x64dbg、radare2、rizin、Binary Ninja、脱壳、加固、反调试、反 Hook、anti-tamper、模拟器检测、Root/Jailbreak 检测、证书绑定、Pinning、抓包对抗和 App 自动化。
+7. WAF、验证码与反机器人系统：关注 Cloudflare、Akamai、DataDome、PerimeterX、Kasada、Arkose、Imperva、AWS WAF、reCAPTCHA、hCaptcha、人机验证、Bot detection、anti-bot、anti-bot TLS fingerprint、anti-bot wasm challenge、captcha bypass 的检测变化、失效反馈和防御启示。
+8. AI Agent 与浏览器自动化：关注 AI Agent browser automation、browser-use MCP、browser automation MCP、js-reverse MCP、camoufox-mcp、cloakbrowser mcp、undetected-chromedriver MCP、自动化浏览器 Agent、验证码识别、自动化脚本生成和 AI 对业务滥用效率的影响。
+9. 指纹检测与隐私/反指纹工具链：关注 FingerprintJS、CreepJS、ThumbmarkJS、FPScanner、CanvasBlocker、JShelter、NoScript、uBlock Origin、Privacy Badger、Random User-Agent、User Agent Switcher 等项目的检测能力、反指纹能力和可观测信号变化。
+10. 漏洞、补丁与供应链安全：关注 CVE、0day/1day、浏览器漏洞、移动端漏洞、依赖库漏洞、供应链投毒、恶意 npm/PyPI 包、CI/CD 泄露、SDK 风险、补丁绕过和厂商响应。
+11. 业务滥用与账号安全风险：关注批量注册、撞库、薅羊毛、刷量、爬虫、羊毛党、代理池、账号矩阵、多账号环境、设备农场、自动化登录、异常注册、支付风控和营销活动滥用相关情报。
+12. 合规、隐私与平台治理：关注浏览器隐私策略、反指纹政策、平台封禁规则、数据合规、自动化访问限制、App Store/Google Play 安全政策、监管对爬虫和数据滥用的约束变化。
+13. 科技平台重大变更背景：关注 Chrome、Android、iOS、Windows、macOS、Cloudflare、Akamai、主流云厂商和大型互联网平台的重大版本、接口、策略和基础设施变化，作为判断防御影响的背景信息。
+14. 泛科技与产业新闻：仅在能影响上述威胁面、业务风控、供应链安全或平台防御策略时关注；普通产品发布、融资、营销和消费新闻默认低优先级。
+
+- 不要标题党/震惊体（如"震惊！"、"太可怕了！"、"竟然..."、"刚刚！"）
+- 不要营销软文、广告推广类标题
+- 不要只有概念炒作、无技术细节、无防御价值的泛 AI 或泛安全标题
+- 不要纯教程式违法攻击、凭证窃取、验证码滥用、绕过付费墙或大规模规避风控的内容；若涉及相关技术，只保留防御研判和加固价值

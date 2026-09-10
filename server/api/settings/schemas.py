@@ -22,6 +22,7 @@ class QueryPayload(BaseModel):
     tag: str | None = None
     search_type: str | None = None
     enabled: bool = True
+    analysis_enabled: bool = False
 
 
 class AssetRulePayload(BaseModel):
@@ -29,6 +30,22 @@ class AssetRulePayload(BaseModel):
     type: str | None = None
     pattern: str | None = None
     enabled: bool = True
+
+
+class OpenAISettingPayload(BaseModel):
+    enabled: bool = False
+    api_key: str | None = None
+    base_url: str | None = None
+    model: str | None = None
+    prompt: str | None = None
+    notify_webhook_on_useful: bool = False
+    usefulness_prompt: str | None = None
+    interests: str | None = None
+    max_context_lines: int | None = None
+    max_context_chars: int | None = None
+    timeout_seconds: int | None = None
+    max_retries: int | None = None
+    concurrency: int | None = None
 
 
 class MailPayload(BaseModel):

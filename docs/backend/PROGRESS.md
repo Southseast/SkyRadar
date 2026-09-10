@@ -23,6 +23,7 @@
 - 任务调度 minute 语义已在后端文档中收敛为 Huey 固定 tick + MongoDB `minute/next_due_at` 控制实际周期；`PUT /api/v1/task-schedules/current` 后新周期不依赖 SIGHUP 动态改 crontab。
 - 查询规则支持 `code` 和 `repositories` 两类 GitHub 检索，旧规则缺省按 `code` 兼容。
 - 资产提取规则支持通过设置 API 自定义；未配置时使用预置 domain、email 和 ip 正则规则，删除预置规则后会持久隐藏并退出扫描。
+- OpenAI 泄露简析已落地：全局设置支持 DB 保存和环境变量兜底，查询规则可独立开启自动分析，扫描保存结果后异步投递 Huey 任务，分析结果只写入 `ai_analysis` 附加状态；可开启 `有用才推送 webhook`，由 AI 判断项目有用后再推送 webhook。
 
 ## 已完成
 
@@ -35,11 +36,12 @@
 - OpenAPI check、route coverage、secret scan、architecture guard、HTTP smoke、worker smoke、Schemathesis smoke、MongoDB smoke、Redis/Huey smoke、compose smoke 和 GitHub/PAT smoke 脚本已落地。
 - GitHub Actions `backend` workflow 已接入本地同等验证命令。
 - 后端设计、实现指南、测试策略、门禁和风险登记已记录任务调度 minute 修复的文档语义：固定 tick、PUT 后尽快生效、原子 claim、防重复 enqueue 和 `next_due_at` 推进。
+- OpenAI 分析 service、settings API、results 重新分析接口、worker 任务和 OpenAPI 契约已补测试；OpenAI API Key GET 响应只暴露 `has_api_key` 和 `mask_api_key`；AI 有用性判断使用可编辑的 prompt/interest 文本并输出 `is_useful`、`usefulness_reason` 和 `matched_interests`。
 
 ## 下一步
 
 - 回填最新远端 GitHub Actions `backend` 运行结果。
-- 按 `PLAN.md` 推进 GitHub Code Search 加固和 baseline/误报治理。
+- 按 `PLAN.md` 继续推进 GitHub Code Search 加固和 baseline/误报治理。
 - 继续维护 domain 边界和 architecture guard。
 - 如需要更强访问控制，再单独设计应用层用户、审计和权限。
 
@@ -51,13 +53,16 @@
 
 - 最新未提交变更推送后，需要回填远端 GitHub Actions 结果。
 - Compose 已为 MongoDB 和 Redis 配置 named volume 持久化；保留数据升级、备份和恢复仍需在目标环境发布前单独验证。
+- 真实 OpenAI API 调用、模型质量和目标环境超时/并发表现本轮未运行，待目标环境凭据复验。
 
 ## 最近验证
 
-- `PYTHONPATH=server pytest -q` 通过，142 passed。
-- `PYTHONPATH=server python3 scripts/backend_openapi_check.py` 通过，覆盖 23 paths、34 operations。
-- `PYTHONPATH=server python3 scripts/backend_openapi_secret_scan.py` 通过，0 findings。
-- `PYTHONPATH=server python3 scripts/backend_route_coverage.py --check-registered-v1` 通过，23 个 runtime `/api/v1/*` routes 覆盖。
+- `PYTHONPATH=server pytest -q` 通过，154 passed。
+- `PYTHONPATH=server pytest -q server/api/ai_analysis/tests/test_ai_analysis_service.py server/api/github_search/tests/test_worker_service.py server/api/settings/tests/test_settings_contract.py server/workers/tests/test_analysis_tasks.py server/tests/test_openapi_contract.py` 通过，51 passed。
+- `PYTHONPATH=server python scripts/backend_worker_smoke.py --json` 通过，覆盖 `workers.analysis_tasks.analyze_leakage`、搜索任务和周期任务注册。
+- `PYTHONPATH=server python scripts/backend_openapi_check.py` 通过，覆盖 25 paths、37 operations。
+- `PYTHONPATH=server python scripts/backend_route_coverage.py` 通过，25 final `/api/v1` paths。
+- `PYTHONPATH=server python scripts/backend_architecture_guard.py` 通过。
 - 2026-06-15 任务调度 minute 修复已验证：后端 pytest 131 passed，worker smoke、architecture guard、OpenAPI check 和 compose smoke 单测通过。
 - `python3 -m compileall -q scripts server` 通过。
 - `git diff --check` 通过。

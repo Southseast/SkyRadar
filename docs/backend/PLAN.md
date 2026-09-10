@@ -15,7 +15,8 @@
 1. 回填最新远端 GitHub Actions `backend` 运行结果。
 2. 持续维护 architecture guard，防止 route/worker 变胖或业务回流到全局工具层。
 3. 优先推进 GitHub Code Search 加固和 baseline/误报治理。
-4. 如需要公网或多人使用，再单独设计应用层用户、审计和权限。
+4. 推进 OpenAI SDK 驱动的泄露简析能力，保持扫描保存和通知链路非阻塞。
+5. 如需要公网或多人使用，再单独设计应用层用户、审计和权限。
 
 ## GitHub 扫描能力路线
 
@@ -58,6 +59,64 @@
 - 新增状态不破坏 `/api/v1/*` REST response envelope。
 - 重复 finding 只更新内部字段。
 - 列表筛选继续使用显式 REST query 参数，不恢复 JSON 字符串过滤。
+
+### P1.5 - OpenAI 泄露简析
+
+目标：
+
+- 新增 OpenAI/AI 分析全局配置，支持 DB 保存、接口脱敏和环境变量兜底。
+- 查询规则新增 `analysis_enabled`，默认关闭；只有开启的规则命中并保存结果后才投递分析任务。
+- GitHub 扫描先保存结果并照常触发通知，AI 分析通过独立 Huey 任务异步执行，失败不影响扫描保存和通知。
+- 每条结果保存 `ai_analysis` 附加状态，不自动修改 `security`、`ignore` 或 `desc`。
+- 分析输入使用泄露元信息、受影响资产和全局受控代码片段窗口，不额外脱敏。
+- 支持可选 `有用才推送 webhook` 模式：启用 AI 分析的规则先保存结果并等待 AI 判断，只有 `is_useful=true` 才推送 webhook。
+
+建议配置：
+
+- `enabled`
+- `api_key` / `has_api_key` / `mask_api_key`
+- `base_url`
+- `model`
+- `prompt`
+- `max_context_lines`
+- `max_context_chars`
+- `timeout_seconds`
+- `max_retries`
+- `concurrency`
+
+建议结果字段：
+
+- `ai_analysis.status`: `pending`、`running`、`success`、`failed`、`skipped`
+- `ai_analysis.risk_level`: `low`、`medium`、`high`、`unknown`
+- `ai_analysis.summary`
+- `ai_analysis.evidence`
+- `ai_analysis.recommendation`
+- `ai_analysis.false_positive_reason`
+- `ai_analysis.model`
+- `ai_analysis.analyzed_at`
+- `ai_analysis.error`
+- `ai_analysis.is_useful`
+- `ai_analysis.usefulness_reason`
+- `ai_analysis.matched_interests`
+
+实施顺序：
+
+1. 增加 OpenAI SDK 依赖和独立 integration wrapper，避免 route、worker 直接散落 SDK 调用。
+2. 在 settings domain 增加 OpenAI 全局配置读写接口，并在查询规则中加入 `analysis_enabled`。
+3. 在 AI analysis domain 中封装上下文截取、prompt 组装、结构化 JSON 校验、状态写回、超时、重试和全局并发控制。
+4. 在 GitHub 扫描保存结果成功后按规则开关投递 Huey 分析任务；任务失败只写入 `ai_analysis.failed`，不影响扫描、保存和通知。
+5. 在 results domain 增加单条重新分析接口，强制覆盖旧的 `ai_analysis` 状态并重新投递任务。
+6. 同步 OpenAPI 契约、后端契约测试和 worker service 测试。
+
+验收：
+
+- OpenAI API Key 不从 GET 接口返回明文，不进入日志。
+- 自定义 prompt 允许编辑，但后端必须追加结构化 JSON 输出约束。
+- 模型返回非法 JSON 时标记 `failed`，不保存原始模型输出。
+- 全局并发限制生效；达到 `concurrency` 时任务延后重试，不并发打爆 OpenAI。
+- 详情页手动重新分析接口可投递单条重跑；第一版不做列表页批量重跑。
+- 未配置 API Key、全局关闭或规则关闭时不得阻塞扫描结果保存。
+- 开启 `有用才推送 webhook` 后，启用 AI 分析的规则不得在扫描阶段提前推送 webhook。
 
 ### P2 - Target/revision 模型
 

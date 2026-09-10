@@ -44,7 +44,8 @@
 
 - 结果表格 loading、empty、error、分页、筛选、行操作。
 - 泄露详情代码展示、状态表单、受影响资产和错误态。
-- 设置页 tab 切换、表单校验、保存、删除、测试通知。
+- 泄露详情 AI 简析展示和单条重新分析提交状态。
+- 设置页 tab 切换、表单校验、保存、删除、测试通知和 OpenAI 分析配置脱敏展示。
 
 ### Browser Smoke
 
@@ -65,7 +66,7 @@
 - SPA fallback 可用。
 - `/api/v1/health` 可访问且子项符合预期。
 - `/api/v1/leakages`、`/api/v1/leakages/{id}`、`/api/v1/leakages/{id}/code` 只读链路可用。
-- `/api/v1/github-accounts`、`/api/v1/search-rules`、`/api/v1/asset-rules`、`/api/v1/task-schedules/current`、`/api/v1/blacklist-items`、`/api/v1/notification-recipients`、`/api/v1/mail-settings/current`、`/api/v1/webhooks` 只读链路可用。
+- `/api/v1/github-accounts`、`/api/v1/search-rules`、`/api/v1/openai-settings/current`、`/api/v1/asset-rules`、`/api/v1/task-schedules/current`、`/api/v1/blacklist-items`、`/api/v1/notification-recipients`、`/api/v1/mail-settings/current`、`/api/v1/webhooks` 只读链路可用。
 
 ## 测试数据
 
@@ -78,6 +79,7 @@
 - 修改 API adapter、请求参数或响应解析。
 - 修改路由、URL query 或 tab 映射。
 - 修改结果列表、详情页、设置页主工作流。
+- 修改 OpenAI 设置页、查询规则自动分析开关、列表 AI 状态、详情 AI 简析或 `有用才推送 webhook` 配置。
 - 修改敏感字段展示、过滤或日志。
 - 修改 Docker/nginx 静态资源路径、SPA fallback 或 `/api` 代理。
 - 引入新的 UI primitive 或页面布局模式。

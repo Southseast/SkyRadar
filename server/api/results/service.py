@@ -4,6 +4,7 @@
 # @Date        : 2026/6/9 15:12
 # @Description : Implements results service logic.
 
+from api.ai_analysis import service as ai_analysis_service
 from api.results import repository as result_repository
 
 
@@ -76,3 +77,10 @@ def leakage_code(leakage_id):
     if result is None:
         raise LeakageResultNotFound(leakage_id)
     return result
+
+
+def trigger_ai_analysis(leakage_id):
+    if result_repository.get_leakage_info(leakage_id) is None:
+        raise LeakageResultNotFound(leakage_id)
+    ai_analysis_service.mark_pending(leakage_id, force=True)
+    return {"id": leakage_id, "ai_analysis": {"status": "pending"}}

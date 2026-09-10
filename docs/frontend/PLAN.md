@@ -39,6 +39,51 @@
 | F008 | 黑名单设置 | Done | `/api/v1/blacklist-items` | 黑名单列表、添加、删除和状态反馈可用 |
 | F009 | 通知设置 | Done | `/api/v1/notification-recipients`, `/api/v1/mail-settings/current`, `/api/v1/webhooks` | 收件人、SMTP、webhook 保存/删除/测试链路可用，secret 不展示 |
 | F010 | 部署切换准备 | Gate Pending | `client/dist`, `/api/v1/health`, SPA fallback | Docker/nginx 静态资源目标和 `/api` 代理已准备，正式发布仍需 release gate |
+| F011 | OpenAI 泄露简析 | Done | `/api/v1/openai-settings/current`, `/api/v1/leakages/{id}/ai-analysis`, `/api/v1/search-rules` | OpenAI 设置页、查询规则自动分析开关、列表 AI 状态/风险等级、详情完整 AI 简析和单条重新分析可用 |
+
+## 计划切片：OpenAI 泄露简析
+
+目标：
+
+- 新增 OpenAI/AI 分析设置区，配置启用状态、API Key、Base URL、模型、自定义 prompt、上下文窗口、超时时间、重试次数、全局并发量、`有用才推送 webhook` 和可编辑 prompt/interest 文本。
+- API Key 允许在设置页保存到后端，但 GET 响应只展示 `has_api_key` 和脱敏值；环境变量作为兜底。
+- 查询规则增加 `自动 AI 分析` 开关，默认关闭。
+- 扫描发现结果后，只有命中规则开启分析才异步触发 AI 分析；失败不影响扫描保存和非 AI gate 通知。
+- 开启 `有用才推送 webhook` 后，启用 AI 分析的规则只有在 AI 判断 `is_useful=true` 后才推送 webhook。
+- 列表页只展示 AI 状态和风险等级，不展示完整摘要。
+- 泄露详情页展示完整 AI 简析，并提供单条 `重新分析` 操作；第一版不做列表页批量重跑。
+
+实施顺序：
+
+1. 补齐 OpenAI 设置和 AI 分析结果类型，新增类型化 API adapter，页面组件不得直接拼 URL。
+2. 在设置页增加 `OpenAI 分析` 分组，支持启用状态、API Key、Base URL、模型、自定义 prompt、上下文窗口、超时、重试和全局并发量。
+3. 在查询规则表单和列表中增加 `自动 AI 分析` 开关，默认关闭，编辑时保留当前规则状态。
+4. 在结果列表中仅展示 AI 状态和风险等级，避免在表格里展开摘要。
+5. 在泄露详情页展示完整 AI 简析，提供单条 `重新分析` 按钮，并保持代码片段窗口仍由现有展开/收起控件控制。
+6. 更新单元测试、设置页和详情页 smoke 检查，确保敏感字段不会进入页面展示或测试快照。
+
+前端状态：
+
+- `未分析` / `跳过`
+- `分析中`
+- `AI 高风险` / `AI 中风险` / `AI 低风险`
+- `AI 失败`
+
+详情展示：
+
+- 风险等级
+- 一句话摘要
+- 证据点
+- 建议处置
+- 可能误报原因
+- 使用模型和分析时间
+- 失败原因和重新分析入口
+
+约束：
+
+- AI 分析只作为辅助信息，不自动修改 `security`、`ignore` 或 `desc`。
+- 自定义 prompt 可编辑，但页面仍按后端结构化字段展示；非法 JSON 由后端标记失败。
+- 代码片段窗口为全局配置，不在每条查询规则里单独配置。
 
 ## P0 验收规则
 

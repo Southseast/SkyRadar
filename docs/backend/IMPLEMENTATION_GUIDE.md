@@ -194,6 +194,11 @@ GitHub Actions 后端 workflow 位于 `.github/workflows/backend.yml`，包含�
 - `REDIS_RESULT_CACHE_DB`：Redis 结果缓存库，默认 `1`。
 - `SKYRADAR_API_DOCS_ENABLED`：是否启用 `/api/v1/docs` 和 `/api/v1/openapi.json`，默认关闭。
 - `SKYRADAR_OPENAPI_PATH`：OpenAPI YAML 文件路径，默认 `docs/api/openapi.yaml`。
+- `OPENAI_ENABLED`：OpenAI 泄露简析环境兜底开关，默认 `false`；MongoDB 中的 OpenAI 设置会覆盖环境默认值。
+- `OPENAI_API_KEY`：OpenAI API Key 环境兜底；如果 MongoDB 设置中保存了 API Key，则以数据库配置为准。
+- `OPENAI_BASE_URL`：OpenAI API Base URL 环境兜底，默认 `https://api.openai.com/v1`。
+- `OPENAI_MODEL`：OpenAI 分析模型环境兜底，默认 `gpt-4o-mini`。
+- `OPENAI_TIMEOUT_SECONDS`：OpenAI SDK 调用超时时间环境兜底，默认 `30`。
 
 当前 nginx/entrypoint 已读取：
 
@@ -217,6 +222,10 @@ GitHub Actions 后端 workflow 位于 `.github/workflows/backend.yml`，包含�
 - MongoDB 认证优先放入 `MONGODB_URI` 或 `MongoClient(...)` 参数，不继续使用 `db.authenticate()`。
 - 应用配置统一收敛到 `server/core/config.py` 或等价配置层；nginx 运行配置由 `docker-entrypoint.sh` 渲染。
 - GitHub PAT、SMTP 密码、webhook token 等业务 secret 不写入文档示例、OpenAPI 示例、测试快照、日志或前端可见状态。
+- OpenAI API Key 与其他业务 secret 同级处理；GET `/api/v1/openai-settings/current` 只能返回 `has_api_key` 和 `mask_api_key`。
+- OpenAI 自定义 prompt 可以保存到 MongoDB，但后端必须追加结构化 JSON 输出约束；模型返回非法 JSON 时只写入 `ai_analysis.failed`，不保存原始模型输出。
+- OpenAI 有用性判断使用设置中的 `usefulness_prompt` 和 `interests` 文本；默认值从项目内 `config/ai_analysis_prompt.txt` 和 `config/ai_interests.txt` 加载，用户可在设置页直接编辑内容。
+- `notify_webhook_on_useful=true` 只影响同时开启 `analysis_enabled` 的查询规则；未开启 AI 分析的规则保持原有 webhook 即时推送。
 
 ## nginx Basic Auth
 

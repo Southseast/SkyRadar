@@ -116,7 +116,7 @@ Swagger UI、OpenAPI JSON 和接口示例会暴露 endpoint、参数、错误行
 
 决策：
 
-HTTP domain 放在 `server/api/<domain>/` 下。`docs`、`health`、`results`、`settings`、`statistics`、`github_search` 和 `notifications` 均按 domain 组织生产代码和测试。跨域基础能力放入 `server/core/`；外部服务适配放入 `server/integrations/`；Huey app 和任务注册放入 `server/workers/`。
+HTTP domain 放在 `server/api/<domain>/` 下。`docs`、`health`、`results`、`settings`、`statistics`、`github_search`、`ai_analysis` 和 `notifications` 均按 domain 组织生产代码和测试。跨域基础能力放入 `server/core/`；外部服务适配放入 `server/integrations/`；Huey app 和任务注册放入 `server/workers/`。
 
 影响：
 

@@ -6,6 +6,8 @@ import type {
   BlacklistItem,
   GithubAccount,
   NoticeMail,
+  OpenAISetting,
+  OpenAISettingPayload,
   QueryRule,
   QueryRuleSearchType,
   SmtpSetting,
@@ -46,11 +48,25 @@ export interface QueryRulePayload {
   keyword: string
   search_type: QueryRuleSearchType
   enabled: boolean
+  analysis_enabled: boolean
 }
 
 export async function fetchQueryRules() {
   const response = await apiClient.get<ApiResponse<unknown>>(endpoints.searchRules)
   return normalizeQueryRules(getResponseData(response.data))
+}
+
+export async function fetchOpenAISetting() {
+  const response = await apiClient.get<ApiResponse<unknown>>(endpoints.openAISettingsCurrent)
+  return sanitizeOpenAISetting(getResponseData(response.data))
+}
+
+export async function saveOpenAISetting(payload: OpenAISettingPayload) {
+  const safePayload = { ...payload }
+  if (safePayload.api_key === "") delete safePayload.api_key
+
+  const response = await apiClient.put<ApiResponse<unknown>>(endpoints.openAISettingsCurrent, safePayload)
+  return toMutationResult(sanitizeOpenAISetting(getResponseData(response.data)) ?? undefined, "设置成功")
 }
 
 export async function saveQueryRule(payload: QueryRulePayload, existingTag?: string) {
@@ -182,6 +198,14 @@ function sanitizeWebhookSettings(settings: unknown): WebhookSetting[] {
   })
 }
 
+function sanitizeOpenAISetting(setting: unknown): OpenAISetting | null {
+  if (!setting || typeof setting !== "object") return null
+
+  const safeSetting = { ...(setting as OpenAISetting & { api_key?: unknown }) }
+  delete safeSetting.api_key
+  return safeSetting
+}
+
 function normalizeList<T>(result: unknown): T[] {
   return Array.isArray(result) ? result : []
 }
@@ -190,6 +214,7 @@ function normalizeQueryRules(result: unknown): QueryRule[] {
   return normalizeList<QueryRule>(result).map((rule) => ({
     ...rule,
     search_type: normalizeSearchType(rule.search_type),
+    analysis_enabled: Boolean(rule.analysis_enabled),
   }))
 }
 

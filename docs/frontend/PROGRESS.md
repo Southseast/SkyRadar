@@ -19,8 +19,11 @@
 - 结果列表和泄露详情同时展示 SkyRadar `discovered_at` 发现时间与 GitHub 侧 `datetime` 更新时间；前端会把后端无时区 ISO 字符串按 UTC 解析后展示为本地时间。
 - 泄露详情代码预览会基于对应查询规则 keyword、命中 tag 和受影响资产值高亮匹配内容；长代码默认只展示摘要片段，用户可显式展开完整内容；规则加载失败时不阻断详情查看。
 - 查询规则设置支持选择 GitHub Code 或 Repositories 检索类型，旧规则缺省按 Code 展示和提交。
+- 查询规则设置支持为单条规则开启自动 AI 分析，默认关闭。
 - 资产提取规则设置支持展示预置 domain、email 和 ip 正则规则，并可添加自定义规则、编辑、启停和删除规则。
 - 查询规则设置的监控规则表格复用通用 `Table` 容器、表头和行 hover 样式，并通过合并查询/抓取信息避免横向滚动条。
+- 设置页新增 OpenAI 分析配置，支持启用状态、API Key、Base URL、模型、自定义 prompt、上下文窗口、超时、重试、全局并发量、`有用才推送 webhook` 和可编辑 prompt/interest 文本；API Key 只展示脱敏状态。
+- 结果列表展示 AI 状态和风险等级，泄露详情展示完整 AI 简析并支持单条重新分析。
 - 架构为 `AppShell` + page routes + feature modules + typed API adapter。
 - API adapter 集中在 `client/src/lib/api/*`，已收敛到 `/api/v1/*` REST response envelope。
 - Docker/nginx 静态资源目标使用 `client/dist`，`/api/v1/*` 反向代理行为保持稳定。
@@ -31,6 +34,7 @@
 - 在预发或生产形态执行只读真实数据抽样，并保留 smoke 输出或截图证据。
 - UI 发生有意义变更时，按 `DESIGN.md`、`TESTING.md` 和 `CHECKLIST.md` 复核。
 - 新增实现期约束时优先更新 `IMPLEMENTATION_GUIDE.md`，避免继续拆分零散文档。
+- 真实 OpenAI API 调用、目标模型输出质量和生产环境并发/超时表现待目标环境凭据复验。
 
 ## 阻塞项
 
@@ -38,10 +42,9 @@
 
 ## 最近验证
 
-- `cd client && npm run test -- --run` 通过，14 个 test files、41 tests。
-- `cd client && npm run lint` 通过。
-- `cd client && npm run build` 通过。
+- `cd client && npm run check` 通过，包含 lint、15 个 test files、45 tests 和 production build；Vite 提示主 chunk 超过 500 kB，但构建成功。
 - `git diff --check` 通过。
 - `python3 scripts/frontend_camoufox_smoke.py --base-url http://127.0.0.1:18081 --timeout 20 --json` 通过，覆盖 `/`、`/setting`、各设置页签和 `/api/v1/health`，视口为 `1440x900`、`1280x720`、`768x1024`、`375x812`。
 - Docker/nginx 真实代理已通过 backend compose smoke 验证。
+- OpenAI 设置页的浏览器 smoke 本轮未运行；当前无运行中的完整后端/数据服务，待目标环境或 compose smoke 环境复验。
 - release gate 真实数据抽样和真实外部通知链路本轮未运行，待目标环境数据与凭据复验。

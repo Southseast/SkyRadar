@@ -1,4 +1,4 @@
-import { ExternalLink, Maximize2, Minimize2, Search, Save } from "lucide-react"
+import { Brain, ExternalLink, Maximize2, Minimize2, RefreshCw, Search, Save } from "lucide-react"
 import { useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 
@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { formatDateTime } from "@/features/results/format"
 import { SettingsBox, SettingsBoxRow } from "@/features/settings/SettingsSection"
 import { getErrorMessage } from "@/lib/api/client"
-import { fetchLeakageCode, fetchLeakageInfo, patchLeakageDetail } from "@/lib/api/results"
+import { fetchLeakageCode, fetchLeakageInfo, patchLeakageDetail, triggerLeakageAIAnalysis } from "@/lib/api/results"
 import { fetchQueryRules } from "@/lib/api/settings"
 import type { AffectedAsset, Leakage, LeakageDetailForm, QueryRule } from "@/types/api"
 
@@ -41,6 +41,7 @@ export function LeakageDetailPage() {
   const [form, setForm] = useState<LeakageDetailForm>({ ...initialForm, id: id ?? "" })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -121,6 +122,23 @@ export function LeakageDetailPage() {
       setError(getErrorMessage(requestError))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleAnalyze() {
+    if (!id) return
+
+    setAnalyzing(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const response = await triggerLeakageAIAnalysis(id)
+      setLeakage((current) => (current ? { ...current, ai_analysis: { status: "pending" } } : current))
+      setNotice(response.message ?? "已提交分析")
+    } catch (requestError) {
+      setError(getErrorMessage(requestError))
+    } finally {
+      setAnalyzing(false)
     }
   }
 
@@ -255,6 +273,79 @@ export function LeakageDetailPage() {
           )}
         </SettingsBoxRow>
       </SettingsBox>
+
+      <SettingsBox>
+        <SettingsBoxRow>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">AI 简析</h2>
+            <Button type="button" variant="outline" size="sm" className="rounded-md" disabled={analyzing} onClick={handleAnalyze}>
+              {analyzing ? <RefreshCw className="size-4 animate-spin" aria-hidden="true" /> : <Brain className="size-4" aria-hidden="true" />}
+              {analyzing ? "提交中" : "重新分析"}
+            </Button>
+          </div>
+        </SettingsBoxRow>
+        <SettingsBoxRow>
+          <AIAnalysisPanel analysis={leakage?.ai_analysis} />
+        </SettingsBoxRow>
+      </SettingsBox>
+    </div>
+  )
+}
+
+function AIAnalysisPanel({ analysis }: { analysis: Leakage["ai_analysis"] }) {
+  if (!analysis?.status) {
+    return <div className="text-sm text-muted-foreground">暂无 AI 分析。</div>
+  }
+
+  if (analysis.status !== "success") {
+    const label: Record<string, string> = {
+      pending: "等待分析",
+      running: "分析中",
+      failed: "分析失败",
+      skipped: "已跳过",
+    }
+    return (
+      <div className="space-y-2 text-sm">
+        <Badge variant="outline" className="rounded">
+          {label[analysis.status] ?? analysis.status}
+        </Badge>
+        {analysis.error ? <p className="text-risk">{analysis.error}</p> : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge className={analysis.risk_level === "high" ? "rounded bg-risk-bg text-risk hover:bg-risk-bg" : "rounded bg-info-bg text-info hover:bg-info-bg"}>
+          {analysis.risk_level === "high" ? "高风险" : analysis.risk_level === "medium" ? "中风险" : analysis.risk_level === "low" ? "低风险" : "未知风险"}
+        </Badge>
+        {analysis.model ? <span className="text-xs text-muted-foreground">{analysis.model}</span> : null}
+        {analysis.analyzed_at ? <span className="text-xs text-muted-foreground">{formatDateTime(analysis.analyzed_at)}</span> : null}
+      </div>
+      {analysis.summary ? <p>{analysis.summary}</p> : null}
+      {analysis.evidence?.length ? (
+        <div>
+          <div className="font-medium">证据点</div>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+            {analysis.evidence.map((item, index) => (
+              <li key={`${item}-${index}`}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {analysis.recommendation ? (
+        <div>
+          <div className="font-medium">建议处置</div>
+          <p className="mt-1 text-muted-foreground">{analysis.recommendation}</p>
+        </div>
+      ) : null}
+      {analysis.false_positive_reason ? (
+        <div>
+          <div className="font-medium">可能误报原因</div>
+          <p className="mt-1 text-muted-foreground">{analysis.false_positive_reason}</p>
+        </div>
+      ) : null}
     </div>
   )
 }

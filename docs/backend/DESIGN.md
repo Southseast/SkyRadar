@@ -41,6 +41,7 @@ server/
 - `settings`：GitHub、规则、任务、黑名单、通知、SMTP、webhook 设置。
 - `statistics`：趋势和统计面板。
 - `github_search`：GitHub Code Search、rate limit、资产提取、结果入库。
+- `ai_analysis`：OpenAI 泄露简析配置读取、上下文组装、并发控制、结构化结果校验和状态写回。
 - `notifications`：邮件和 webhook 通知发送编排。
 
 新增业务优先进入同一 domain 的 routes/schema/service/repository/tests。跨域基础能力进入 `core`，外部服务进入 `integrations`，后台任务入口进入 `workers`。
@@ -140,6 +141,7 @@ server/
 - `api/notifications` 负责通知业务编排和选择 message builder，不直接构造 provider 签名、HTTP 请求或 SMTP message。
 - 内部函数命名采用动宾结构并保留领域上下文，例如 `search_github_code()`、`schedule_github_search()`、`send_webhook_notice()`；避免 `check()`、`new_github()`、`webhook_notice()`、`send_mail()` 这类泛名。
 - 基础设施能力进入 `core`，外部系统能力进入 `integrations`，不要用 `utils` 作为无法归属代码的默认位置。
+- OpenAI SDK 调用只能通过 `integrations/openai_client.py` 或等价 integration wrapper 暴露给 domain service；route 和 worker 不直接实例化 SDK client。
 
 ### Worker
 
@@ -164,6 +166,7 @@ server/
 - enqueue 成功后必须按当前 MongoDB task setting 的 `minute` 推进 `next_due_at`，避免下一次固定 tick 重复投递同一周期任务。
 - `PUT /api/v1/task-schedules/current` 更新 `minute` 后，新周期应在下一次固定 tick 或当前进行中的检查中尽快按 MongoDB setting 生效；不得依赖 SIGHUP 或动态重载 Huey crontab 才能应用新周期。
 - 如果任务执行失败，失败处理不得回退已经原子 claim 的 `next_due_at`，重试、补偿或告警必须作为独立语义设计并覆盖测试。
+- AI 分析任务必须在泄露结果保存后异步投递；OpenAI 调用失败、超时、返回非法 JSON 或全局关闭时只能写入 `ai_analysis` 附加状态，不得阻断扫描结果保存、资产提取或非 AI gate 通知发送。
 
 ## FastAPI 架构规则
 
@@ -321,13 +324,16 @@ server/
 - `GET /api/v1/leakages/{leakage_id}` 返回泄露详情元信息，不包含代码正文。
 - `PATCH /api/v1/leakages/{leakage_id}` 更新 `security`、`ignored`、`desc` 和可选同项目结果。
 - `GET /api/v1/leakages/{leakage_id}/code` 返回 base64 编码代码和受影响资产；代码内容不得进入普通日志、OpenAPI 示例或测试快照。
+- `POST /api/v1/leakages/{leakage_id}/ai-analysis` 创建单条异步 AI 分析任务，成功返回 HTTP 202 和 `ai_analysis.status=pending`；分析结果只作为附加信息，不自动修改 `security`、`ignore` 或 `desc`。
 - `GET /api/v1/trends` 返回仪表盘统计和扫描任务运行信息。
 - `GET /api/v1/statistics` 使用 `by` 明确聚合维度，当前维度为 `tag`、`language`、`security`、`ignore` 或 `project`。
 
 设置资源：
 
 - GitHub 账号使用 `/api/v1/github-accounts` 和 `/api/v1/github-accounts/{username}`；响应不得包含原始 token。
-- 查询规则使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`；`search_type` 支持 `code` 和 `repositories`，缺省或旧数据按 `code` 处理。
+- 查询规则使用 `/api/v1/search-rules` 和 `/api/v1/search-rules/{tag}`；`search_type` 支持 `code` 和 `repositories`，缺省或旧数据按 `code` 处理；`analysis_enabled` 默认关闭，开启后仅表示该规则命中并保存结果后会异步投递 AI 分析。
+- OpenAI 分析配置使用 `/api/v1/openai-settings/current`；GET 响应只返回 `has_api_key` 和 `mask_api_key`，不得返回明文 API Key；配置包含启用状态、base URL、模型、自定义 prompt、代码上下文窗口、超时、重试、全局并发量、项目有用性 prompt 文本、兴趣描述文本和 `有用才推送 webhook` 开关。
+- 开启 `有用才推送 webhook` 后，启用 AI 分析的查询规则命中不会在扫描阶段立即推送 webhook；worker 只在 AI 分析成功且 `ai_analysis.is_useful=true` 时推送 webhook。
 - 任务调度使用 `/api/v1/task-schedules/current`；`minute` 更新写入 MongoDB task setting 后由固定 tick worker 读取，实际调度周期由 `minute` 和 `next_due_at` 决定，不通过 SIGHUP 动态改 Huey crontab。
 - 黑名单使用 `/api/v1/blacklist-items` 和 `/api/v1/blacklist-items/{text}`。
 - 资产提取规则使用 `/api/v1/asset-rules` 和 `/api/v1/asset-rules/{rule_id}`；未配置时返回并使用预置 domain、email 和 ip 正则规则，配置后按预置规则加数据库覆盖/新增规则合并；删除预置规则会写入隐藏标记，后续列表和扫描不再合并该预置规则。
@@ -370,11 +376,13 @@ API 文档入口：
 - MongoDB URI 中的用户名和密码。
 - Redis 密码或未来 Redis ACL secret。
 - 泄露代码内容、受影响资产和内部项目标识。
+- OpenAI API Key 和自定义 prompt 中可能包含的内部处置说明。
 
 规则：
 
 - 数据库可以存储业务必需 secret，但返回给 route 前必须提供 public view 或脱敏方法。
 - API response 不得包含原始 `password`、`token`、`secret`、完整 webhook 签名。
+- OpenAI API Key 可以保存在 MongoDB 配置中，GET 接口、OpenAPI 示例、测试快照和普通日志只能暴露是否已配置和脱敏值。
 - OpenAPI schema、Swagger 示例、README、测试 fixture 和日志不得包含真实 secret。
 - OpenAPI 示例和描述文本必须由 `scripts/backend_openapi_secret_scan.py` 扫描。
 - 日志记录外部请求失败时，只记录平台、脱敏 URL、状态码和错误摘要。

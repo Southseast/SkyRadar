@@ -9,6 +9,7 @@ import hashlib
 import os
 import time
 
+from api.ai_analysis import service as ai_analysis_service
 from api.github_search import assets as asset_service
 from api.github_search import repository as worker_repository
 from core.logging import logger
@@ -128,7 +129,17 @@ def _is_blacklisted(link):
     return False
 
 
-def _append_repository_notices(leakage, mail_notice_list, webhook_notice_list):
+def _webhook_requires_useful_ai(query):
+    return bool(query.get("analysis_enabled") and ai_analysis_service.notify_webhook_on_useful_enabled())
+
+
+def _append_webhook_notice(webhook_notice_list, query, notice):
+    if _webhook_requires_useful_ai(query):
+        return
+    webhook_notice_list.append(notice)
+
+
+def _append_repository_notices(query, leakage, mail_notice_list, webhook_notice_list):
     if worker_repository.result_exists({"project": leakage.get("project"), "ignore": 1}):
         return False
     if not worker_repository.result_exists({"project": leakage.get("project"), "security": 0}):
@@ -137,17 +148,26 @@ def _append_repository_notices(leakage, mail_notice_list, webhook_notice_list):
                 leakage.get("datetime"), leakage.get("link"), leakage.get("project")
             )
         )
-        webhook_notice_list.append(
+        _append_webhook_notice(
+            webhook_notice_list,
+            query,
             "[{}]({}) 更新于 {}".format(
                 leakage.get("project"),
                 leakage.get("link"),
                 leakage.get("datetime"),
-            )
+            ),
         )
     return True
 
 
-def search_github_code(query, page, github_or_account, github_username=None, *, asset_extractor=None, retry):
+def _queue_ai_analysis(leakage_id, query, schedule_analysis):
+    if not query.get("analysis_enabled") or schedule_analysis is None:
+        return
+    if ai_analysis_service.mark_pending(leakage_id):
+        schedule_analysis(leakage_id)
+
+
+def search_github_code(query, page, github_or_account, github_username=None, *, asset_extractor=None, retry, schedule_analysis=None):
     asset_extractor = asset_extractor or asset_service.default_extractor()
     mail_notice_list = []
     webhook_notice_list = []
@@ -178,11 +198,12 @@ def search_github_code(query, page, github_or_account, github_username=None, *, 
                     continue
                 if _is_blacklisted(leakage.get("link", "")):
                     continue
-                if not _append_repository_notices(leakage, mail_notice_list, webhook_notice_list):
+                if not _append_repository_notices(query, leakage, mail_notice_list, webhook_notice_list):
                     continue
                 _mark_discovered(leakage)
                 try:
                     worker_repository.insert_result(leakage)
+                    _queue_ai_analysis(leakage.get("_id"), query, schedule_analysis)
                     logger.info(leakage.get("project"))
                 except worker_repository.DuplicateKeyError:
                     logger.info("已存在")
@@ -232,17 +253,20 @@ def search_github_code(query, page, github_or_account, github_username=None, *, 
                         leakage.get("datetime"), leakage.get("link"), leakage.get("project"), leakage.get("filename")
                     )
                 )
-                webhook_notice_list.append(
+                _append_webhook_notice(
+                    webhook_notice_list,
+                    query,
                     "[{}/{}]({}) 上传于 {}".format(
                         leakage.get("project").split(".")[-1],
                         leakage.get("filename"),
                         leakage.get("link"),
                         leakage.get("datetime"),
-                    )
+                    ),
                 )
             _mark_discovered(leakage)
             try:
                 worker_repository.insert_result(leakage)
+                _queue_ai_analysis(leakage.get("_id"), query, schedule_analysis)
                 logger.info(leakage.get("project"))
             except worker_repository.DuplicateKeyError:
                 logger.info("已存在")

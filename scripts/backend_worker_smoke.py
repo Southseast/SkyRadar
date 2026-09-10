@@ -38,6 +38,7 @@ def configure_logging(json_output=False):
 
 SERVER_ROOT = "server"
 EXPECTED_TASKS = {
+    "workers.analysis_tasks.analyze_leakage",
     "workers.search_tasks.search",
     "workers.search_tasks.send_webhook_notice",
     "workers.search_tasks.send_mail_notice",

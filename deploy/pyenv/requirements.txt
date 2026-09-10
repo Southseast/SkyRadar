@@ -9,6 +9,7 @@ certifi>=2025.1
 gunicorn>=26,<27
 huey>=2.5,<3
 loguru>=0.7,<0.8
+openai>=2.11,<3
 psutil>=7,<8
 pymongo>=4.11,<5
 pytz>=2025.1

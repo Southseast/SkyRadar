@@ -23,6 +23,7 @@ interface QueryRuleForm {
   keyword: string
   search_type: QueryRuleSearchType
   enabled: boolean
+  analysis_enabled: boolean
 }
 
 const emptyForm: QueryRuleForm = {
@@ -30,6 +31,7 @@ const emptyForm: QueryRuleForm = {
   keyword: "",
   search_type: "code",
   enabled: true,
+  analysis_enabled: false,
 }
 
 const searchTypeLabel = {
@@ -99,6 +101,7 @@ export function QueryRules() {
         keyword: form.keyword.trim(),
         search_type: form.search_type,
         enabled: form.enabled,
+        analysis_enabled: form.analysis_enabled,
       }, editingTag ?? undefined)
       setRules(await fetchQueryRules())
       setForm(emptyForm)
@@ -123,6 +126,7 @@ export function QueryRules() {
         keyword: rule.keyword,
         search_type: rule.search_type,
         enabled,
+        analysis_enabled: rule.analysis_enabled,
       }, rule.tag)
       setRules(await fetchQueryRules())
       setNotice(response.message ?? "更新成功")
@@ -161,6 +165,7 @@ export function QueryRules() {
       keyword: rule.keyword,
       search_type: rule.search_type,
       enabled: rule.enabled,
+      analysis_enabled: rule.analysis_enabled,
     })
   }
 
@@ -184,7 +189,7 @@ export function QueryRules() {
       <SettingsBox>
         <SettingsBoxRow className="space-y-3">
           <SettingsRowTitle icon={Search}>{editingId ? "编辑查询规则" : "添加查询规则"}</SettingsRowTitle>
-          <form className="grid gap-3 xl:grid-cols-[220px_170px_1fr_110px_auto] xl:items-end" onSubmit={handleSubmit}>
+          <form className="grid gap-3 xl:grid-cols-[220px_170px_minmax(0,1fr)_110px_130px_auto] xl:items-end" onSubmit={handleSubmit}>
             <div className="grid gap-1.5">
               <Label htmlFor="query-rule-tag">名称</Label>
               <Input
@@ -231,6 +236,17 @@ export function QueryRules() {
                 启用
               </label>
             </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="query-rule-analysis-enabled">AI 分析</Label>
+              <label className="flex h-9 items-center gap-2 text-sm">
+                <Switch
+                  id="query-rule-analysis-enabled"
+                  checked={form.analysis_enabled}
+                  onCheckedChange={(analysis_enabled) => setForm((current) => ({ ...current, analysis_enabled }))}
+                />
+                自动
+              </label>
+            </div>
             <div className="flex gap-2">
               <Button type="submit" className="h-9 rounded-md" disabled={saving}>
                 <Plus className="size-4" aria-hidden="true" />
@@ -257,11 +273,12 @@ export function QueryRules() {
             <Table className="table-fixed">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[18%]">名称</TableHead>
-                  <TableHead className="w-[38%]">查询</TableHead>
-                  <TableHead className="w-[18%]">抓取进度</TableHead>
-                  <TableHead className="w-[12%]">状态</TableHead>
-                  <TableHead className="w-[14%] text-right">操作</TableHead>
+                  <TableHead className="w-[16%]">名称</TableHead>
+                  <TableHead className="w-[34%]">查询</TableHead>
+                  <TableHead className="w-[14%]">抓取进度</TableHead>
+                  <TableHead className="w-[10%]">状态</TableHead>
+                  <TableHead className="w-[10%]">AI 分析</TableHead>
+                  <TableHead className="w-[16%] text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -307,6 +324,11 @@ export function QueryRules() {
                         />
                         <span className="hidden text-xs text-muted-foreground sm:inline">{rule.enabled ? "启用" : "停用"}</span>
                       </div>
+                    </TableCell>
+                    <TableCell className="whitespace-normal">
+                      <Badge variant={rule.analysis_enabled ? "secondary" : "outline"} className="rounded">
+                        {rule.analysis_enabled ? "自动" : "关闭"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="whitespace-normal">
                       <div className="flex flex-wrap justify-end gap-1.5">

@@ -32,6 +32,7 @@ describe("QueryRules", () => {
           keyword: "password OR token",
           search_type: "code",
           enabled: true,
+          analysis_enabled: true,
           last: 1_780_000_000,
           api_total: 42,
           found_total: 7,
@@ -44,6 +45,7 @@ describe("QueryRules", () => {
           keyword: "password OR token",
           search_type: "repositories",
           enabled: false,
+          analysis_enabled: true,
         },
       ])
       .mockResolvedValueOnce([
@@ -53,6 +55,7 @@ describe("QueryRules", () => {
           keyword: "secret",
           search_type: "repositories",
           enabled: false,
+          analysis_enabled: true,
         },
       ])
     mockedSaveQueryRule.mockResolvedValue({
@@ -82,6 +85,7 @@ describe("QueryRules", () => {
           keyword: "password OR token",
           search_type: "code",
           enabled: false,
+          analysis_enabled: true,
         },
         "credential",
       )
@@ -101,6 +105,7 @@ describe("QueryRules", () => {
           keyword: "secret",
           search_type: "repositories",
           enabled: false,
+          analysis_enabled: true,
         },
         "credential",
       )
@@ -115,6 +120,7 @@ describe("QueryRules", () => {
         keyword: "secret",
         search_type: "repositories",
         enabled: false,
+        analysis_enabled: true,
       })
     })
     expect(await screen.findByText("暂无查询规则")).toBeInTheDocument()
@@ -128,6 +134,7 @@ describe("QueryRules", () => {
         keyword: "api_key",
         search_type: "code",
         enabled: true,
+        analysis_enabled: false,
       },
     ])
     mockedSaveQueryRule.mockResolvedValue({
@@ -144,6 +151,7 @@ describe("QueryRules", () => {
 
     await userEvent.type(screen.getByLabelText("名称"), "secret")
     await userEvent.type(screen.getByLabelText("关键字"), "api_key")
+    await userEvent.click(screen.getByLabelText("AI 分析"))
     await userEvent.click(screen.getByRole("button", { name: "保存" }))
 
     await waitFor(() => {
@@ -153,6 +161,7 @@ describe("QueryRules", () => {
           keyword: "api_key",
           search_type: "code",
           enabled: true,
+          analysis_enabled: true,
         },
         undefined,
       )

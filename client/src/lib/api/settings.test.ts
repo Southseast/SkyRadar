@@ -12,9 +12,11 @@ import {
   fetchBlacklist,
   fetchGithubAccounts,
   fetchNoticeMails,
+  fetchOpenAISetting,
   fetchQueryRules,
   fetchWebhookSettings,
   saveAssetRule,
+  saveOpenAISetting,
   saveQueryRule,
   saveSmtpSetting,
 } from "@/lib/api/settings"
@@ -118,6 +120,7 @@ describe("settings api adapter", () => {
       keyword: "password OR token",
       search_type: "repositories",
       enabled: true,
+      analysis_enabled: true,
     })
 
     expect(postSpy).toHaveBeenCalledWith("/api/v1/search-rules", {
@@ -125,6 +128,7 @@ describe("settings api adapter", () => {
       keyword: "password OR token",
       search_type: "repositories",
       enabled: true,
+      analysis_enabled: true,
     })
   })
 
@@ -139,6 +143,7 @@ describe("settings api adapter", () => {
         keyword: "secret",
         search_type: "code",
         enabled: false,
+        analysis_enabled: false,
       },
       "credential/token",
     )
@@ -148,6 +153,7 @@ describe("settings api adapter", () => {
       keyword: "secret",
       search_type: "code",
       enabled: false,
+      analysis_enabled: false,
     })
   })
 
@@ -159,8 +165,60 @@ describe("settings api adapter", () => {
     } as AxiosResponse)
 
     await expect(fetchQueryRules()).resolves.toEqual([
-      { _id: "rule-1", tag: "credential", keyword: "token", search_type: "code", enabled: true },
+      { _id: "rule-1", tag: "credential", keyword: "token", search_type: "code", enabled: true, analysis_enabled: false },
     ])
+  })
+
+  it("uses OpenAI settings endpoint without exposing raw api keys", async () => {
+    const getSpy = vi.spyOn(apiClient, "get").mockResolvedValue({
+      data: {
+        data: {
+          enabled: true,
+          has_api_key: true,
+          mask_api_key: "sk-t****alue",
+          api_key: "sk-test-secret-value",
+          base_url: "https://api.openai.com/v1",
+          model: "gpt-4o-mini",
+          prompt: "分析泄露",
+          notify_webhook_on_useful: true,
+          usefulness_prompt: "判断项目是否值得关注",
+          interests: "浏览器指纹与自动化规避",
+          max_context_lines: 120,
+          max_context_chars: 12000,
+          timeout_seconds: 30,
+          max_retries: 2,
+          concurrency: 2,
+        },
+      },
+    } as AxiosResponse)
+    const putSpy = vi.spyOn(apiClient, "put").mockResolvedValue({
+      data: { data: { enabled: true, has_api_key: true } },
+    } as AxiosResponse)
+
+    await expect(fetchOpenAISetting()).resolves.not.toHaveProperty("api_key")
+    await saveOpenAISetting({
+      enabled: true,
+      api_key: "",
+      base_url: "https://api.openai.com/v1",
+      model: "gpt-4o-mini",
+      prompt: "分析泄露",
+      notify_webhook_on_useful: true,
+      usefulness_prompt: "判断项目是否值得关注",
+      interests: "浏览器指纹与自动化规避",
+      max_context_lines: 120,
+      max_context_chars: 12000,
+      timeout_seconds: 30,
+      max_retries: 2,
+      concurrency: 2,
+    })
+
+    expect(getSpy).toHaveBeenCalledWith("/api/v1/openai-settings/current")
+    expect(putSpy).toHaveBeenCalledWith(
+      "/api/v1/openai-settings/current",
+      expect.not.objectContaining({
+        api_key: "",
+      }),
+    )
   })
 
   it("deletes Webhook settings by webhook_id when available", async () => {

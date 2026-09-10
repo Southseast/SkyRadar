@@ -4,13 +4,14 @@ import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { LeakageDetailPage } from "@/pages/LeakageDetailPage"
-import { fetchLeakageCode, fetchLeakageInfo, patchLeakageDetail } from "@/lib/api/results"
+import { fetchLeakageCode, fetchLeakageInfo, patchLeakageDetail, triggerLeakageAIAnalysis } from "@/lib/api/results"
 import { fetchQueryRules } from "@/lib/api/settings"
 
 vi.mock("@/lib/api/results", () => ({
   fetchLeakageCode: vi.fn(),
   fetchLeakageInfo: vi.fn(),
   patchLeakageDetail: vi.fn(),
+  triggerLeakageAIAnalysis: vi.fn(),
 }))
 
 vi.mock("@/lib/api/settings", () => ({
@@ -20,6 +21,7 @@ vi.mock("@/lib/api/settings", () => ({
 const mockedFetchLeakageInfo = vi.mocked(fetchLeakageInfo)
 const mockedFetchLeakageCode = vi.mocked(fetchLeakageCode)
 const mockedPatchLeakageDetail = vi.mocked(patchLeakageDetail)
+const mockedTriggerLeakageAIAnalysis = vi.mocked(triggerLeakageAIAnalysis)
 const mockedFetchQueryRules = vi.mocked(fetchQueryRules)
 
 describe("LeakageDetailPage", () => {
@@ -27,8 +29,10 @@ describe("LeakageDetailPage", () => {
     mockedFetchLeakageInfo.mockReset()
     mockedFetchLeakageCode.mockReset()
     mockedPatchLeakageDetail.mockReset()
+    mockedTriggerLeakageAIAnalysis.mockReset()
     mockedFetchQueryRules.mockReset()
     mockedFetchQueryRules.mockResolvedValue([])
+    mockedTriggerLeakageAIAnalysis.mockResolvedValue({ message: "已提交分析" })
   })
 
   it("loads leakage detail, decodes code, and submits the compatible payload", async () => {
@@ -60,6 +64,7 @@ describe("LeakageDetailPage", () => {
         tag: "credential",
         search_type: "code",
         enabled: true,
+        analysis_enabled: false,
       },
     ])
     mockedPatchLeakageDetail.mockResolvedValue({ message: "处理成功" })
@@ -191,6 +196,7 @@ describe("LeakageDetailPage", () => {
         tag: "credential",
         search_type: "code",
         enabled: true,
+        analysis_enabled: false,
       },
     ])
 
@@ -211,5 +217,56 @@ describe("LeakageDetailPage", () => {
     expect(screen.getByText(/完整内容，220 行/)).toBeInTheDocument()
     expect(screen.getByText((_, element) => element?.tagName === "PRE" && Boolean(element.textContent?.includes("const line0 = 0")))).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "收起为摘要" })).toBeInTheDocument()
+  })
+
+  it("shows AI analysis and can submit a rerun", async () => {
+    mockedFetchLeakageInfo.mockResolvedValue({
+      _id: "leakage-5",
+      link: "https://github.com/acme/skyradar/blob/main/ai.py",
+      project: "acme/skyradar",
+      project_url: "https://github.com/acme/skyradar",
+      language: "Python",
+      username: "acme",
+      filepath: "ai.py",
+      filename: "ai.py",
+      security: 0,
+      ignore: 0,
+      tag: "credential",
+      discovered_at: "2026-06-05T09:00:00Z",
+      discovered_timestamp: 1780650000,
+      datetime: "2026-06-05T08:00:00Z",
+      ai_analysis: {
+        status: "success",
+        risk_level: "high",
+        summary: "疑似真实凭据泄露",
+        evidence: ["包含 token 字段"],
+        recommendation: "轮换凭据",
+        false_positive_reason: "",
+        model: "gpt-4o-mini",
+        analyzed_at: "2026-06-05T09:10:00Z",
+      },
+    })
+    mockedFetchLeakageCode.mockResolvedValue({
+      code: "Y29uc3QgdG9rZW4gPSAnc2VjcmV0Jw==",
+      affect: [{ type: "token", value: "secret" }],
+    })
+
+    render(
+      <MemoryRouter initialEntries={["/view/leakage/leakage-5"]}>
+        <Routes>
+          <Route path="/view/leakage/:id" element={<LeakageDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByText("疑似真实凭据泄露")).toBeInTheDocument()
+    expect(screen.getByText("高风险")).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole("button", { name: "重新分析" }))
+
+    await waitFor(() => {
+      expect(mockedTriggerLeakageAIAnalysis).toHaveBeenCalledWith("leakage-5")
+    })
+    expect(screen.getByText("等待分析")).toBeInTheDocument()
   })
 })

@@ -31,6 +31,7 @@ SkyRadar 当前聚焦 GitHub Code Search 主线：
 - 展示泄露结果、趋势统计、标签统计、详情代码片段和受影响资产。
 - 支持结果状态处理：确认、误报、忽略、备注。
 - 支持查询规则、资产提取规则、任务周期、黑名单、通知邮箱、SMTP、钉钉 webhook 和飞书 webhook 配置。
+- 支持可选 OpenAI 泄露简析：按查询规则开关异步分析结果，可配置为 AI 判断项目有用后才推送 webhook。
 - 支持邮件、钉钉 webhook 和飞书 webhook 通知。
 
 不在当前主线内的能力：
@@ -179,6 +180,11 @@ docker compose up -d
 | `SKYRADAR_BASIC_AUTH_ENABLED` | `true` | 是否启用 nginx Basic Auth |
 | `SKYRADAR_BASIC_AUTH_USERNAME` | 空 | nginx Basic Auth 用户名；为空时优先读取持久化 auth volume，缺失时随机生成 |
 | `SKYRADAR_BASIC_AUTH_PASSWORD` | 空 | nginx Basic Auth 密码；为空时优先读取持久化 auth volume，缺失时随机生成 |
+| `OPENAI_ENABLED` | `false` | OpenAI 泄露简析环境兜底开关，可在设置页覆盖 |
+| `OPENAI_API_KEY` | 空 | OpenAI API Key 环境兜底；设置页保存的密钥优先生效 |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | OpenAI API Base URL 环境兜底 |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI 分析模型环境兜底 |
+| `OPENAI_TIMEOUT_SECONDS` | `30` | OpenAI SDK 调用超时时间环境兜底 |
 
 Basic Auth 默认开启。未设置用户名或密码时会优先复用 auth volume 中的凭据；volume 为空时随机生成缺失项并打印到 nginx 容器日志：
 
@@ -201,6 +207,17 @@ docker compose up -d
 ```bash
 SKYRADAR_BASIC_AUTH_ENABLED=false docker compose up -d
 ```
+
+### OpenAI 泄露简析
+
+OpenAI 分析默认关闭。启用方式：
+
+- 在前端 `设置 -> OpenAI 分析` 中配置 API Key、Base URL、模型、自定义 prompt、代码上下文窗口、超时、重试和全局并发量。
+- 在 `设置 -> 查询规则` 中为需要自动分析的规则打开 `AI 分析` 开关。
+- 如需只推送有价值项目，在 `设置 -> OpenAI 分析` 中打开 `有用才推送`。项目内 `config/ai_analysis_prompt.txt` 和 `config/ai_interests.txt` 作为默认内容来源，用户可在设置页直接编辑并保存这两段文本。
+
+扫描命中并保存结果后，worker 会异步投递分析任务。AI 分析只写入每条结果的 `ai_analysis` 附加状态，不会自动修改安全状态、忽略状态或备注；OpenAI 调用失败、超时或返回非法 JSON 时只记录失败状态，不影响扫描结果保存和通知发送。
+开启 `有用才推送` 后，启用 AI 分析的查询规则不会在扫描阶段立即推送 webhook；只有 AI 返回 `is_useful=true` 时才推送 webhook。未开启 AI 分析的规则仍按原逻辑立即推送 webhook。Docker 镜像会把项目内 `config/` 复制到 `/SkyRadar/config`，用于初始化默认文本。
 
 ### 数据持久化
 

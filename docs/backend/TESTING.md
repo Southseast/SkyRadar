@@ -41,12 +41,14 @@ P0 覆盖：
 - `GET /api/v1/leakages`
 - `GET/PATCH /api/v1/leakages/{leakage_id}`
 - `GET /api/v1/leakages/{leakage_id}/code`
+- `POST /api/v1/leakages/{leakage_id}/ai-analysis`
 - `GET /api/v1/trends`
 - `GET /api/v1/statistics`
 - `GET/POST /api/v1/github-accounts`
 - `DELETE /api/v1/github-accounts/{username}`
 - `GET/POST /api/v1/search-rules`
 - `PUT/DELETE /api/v1/search-rules/{tag}`
+- `GET/PUT /api/v1/openai-settings/current`
 - `GET/POST /api/v1/asset-rules`
 - `PUT/DELETE /api/v1/asset-rules/{rule_id}`
 - `GET/PUT /api/v1/task-schedules/current`
@@ -65,6 +67,7 @@ P0 覆盖：
 - 所有错误响应使用 `error/message/detail/request_id`。
 - DELETE 成功使用 HTTP 204 且无 body。
 - GitHub account、SMTP 和 webhook 设置响应脱敏。
+- OpenAI 设置响应不得返回明文 API Key。
 
 完整协议细节以 `DESIGN.md` 的 API 契约语义为准。
 
@@ -142,6 +145,7 @@ server/
 - 修改 `/api/v1/leakages` 筛选、分页、排序、状态处理。
 - 修改任何 settings 增删改查接口。
 - 修改 GitHub token、SMTP password、webhook 等敏感字段展示或存储。
+- 修改 OpenAI 设置、AI 分析状态、并发、重试、上下文窗口、`analysis_enabled` 触发语义、项目有用性判断或 AI gate webhook 推送语义。
 - 替换 PyMongo API、MongoDB 连接认证或 health check。
 - 升级 Python、FastAPI、Uvicorn、Gunicorn、PyMongo、Redis client、Huey、PyGithub、Requests。
 - 调整 Huey task、定时任务、GitHub 搜索、邮件或 webhook 通知。

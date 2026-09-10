@@ -78,6 +78,11 @@ export async function patchLeakageDetail(payload: LeakageDetailForm) {
   return toMutationResult(getResponseData(response.data), "处理成功")
 }
 
+export async function triggerLeakageAIAnalysis(id: string) {
+  const response = await apiClient.post<ApiResponse<unknown>>(endpoints.leakageAIAnalysis(id))
+  return toMutationResult(getResponseData(response.data), "已提交分析")
+}
+
 function toLeakageListQuery(params: LeakageListParams) {
   return {
     ...(params.status.security === undefined ? {} : { security: params.status.security }),

@@ -141,7 +141,10 @@ export function ResultsTable({
               </Link>
             </div>
 
-            <div>{renderStatus(item)}</div>
+            <div className="space-y-1">
+              {renderStatus(item)}
+              {renderAIStatus(item.ai_analysis)}
+            </div>
 
             <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
               <Tooltip>
@@ -226,6 +229,40 @@ function renderStatus(item: Leakage) {
   }
 
   return <Badge className="rounded bg-warning-bg text-warning hover:bg-warning-bg">待审</Badge>
+}
+
+function renderAIStatus(analysis: Leakage["ai_analysis"]) {
+  if (!analysis?.status) {
+    return (
+      <Badge variant="outline" className="rounded">
+        AI 未分析
+      </Badge>
+    )
+  }
+
+  if (analysis.status === "success") {
+    const label = analysis.risk_level === "high" ? "AI 高风险" : analysis.risk_level === "medium" ? "AI 中风险" : analysis.risk_level === "low" ? "AI 低风险" : "AI 已分析"
+    const className =
+      analysis.risk_level === "high"
+        ? "rounded bg-risk-bg text-risk hover:bg-risk-bg"
+        : analysis.risk_level === "medium"
+          ? "rounded bg-warning-bg text-warning hover:bg-warning-bg"
+          : "rounded bg-safe-bg text-safe hover:bg-safe-bg"
+    return <Badge className={className}>{label}</Badge>
+  }
+
+  const statusLabel: Record<string, string> = {
+    pending: "AI 等待中",
+    running: "AI 分析中",
+    failed: "AI 失败",
+    skipped: "AI 跳过",
+  }
+
+  return (
+    <Badge variant="outline" className="rounded">
+      {statusLabel[analysis.status] ?? "AI 未分析"}
+    </Badge>
+  )
 }
 
 function getExternalUrl(value?: string | null) {

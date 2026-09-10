@@ -36,6 +36,7 @@ RUN mkdir -p /SkyRadar/client \
     && cp -a /tmp/frontend-dist /SkyRadar/client/dist \
     && rm -rf /tmp/frontend-dist
 COPY ./server /SkyRadar/server
+COPY ./config /SkyRadar/config
 COPY ./docs/api /SkyRadar/docs/api
 WORKDIR /SkyRadar
 COPY ./docker-entrypoint.sh /SkyRadar/docker-entrypoint.sh

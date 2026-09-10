@@ -46,6 +46,7 @@ export interface Leakage {
   discovered_at: string
   discovered_timestamp: number
   timestamp?: number
+  ai_analysis?: AIAnalysis
 }
 
 export interface LeakageQueryStatus {
@@ -81,6 +82,21 @@ export interface LeakageDetailForm {
   ignore: 0 | 1
   security: 0 | 1
   desc: string
+}
+
+export type AIAnalysisStatus = "pending" | "running" | "success" | "failed" | "skipped" | string
+export type AIAnalysisRiskLevel = "low" | "medium" | "high" | "unknown" | string
+
+export interface AIAnalysis {
+  status: AIAnalysisStatus
+  risk_level?: AIAnalysisRiskLevel
+  summary?: string
+  evidence?: string[]
+  recommendation?: string
+  false_positive_reason?: string
+  model?: string
+  analyzed_at?: string
+  error?: string
 }
 
 export interface TrendCount {
@@ -121,11 +137,45 @@ export interface QueryRule {
   tag: string
   search_type: QueryRuleSearchType
   enabled: boolean
+  analysis_enabled: boolean
   last?: number
   status?: number
   reason?: string
   api_total?: number
   found_total?: number
+}
+
+export interface OpenAISetting {
+  enabled: boolean
+  has_api_key: boolean
+  mask_api_key?: string
+  base_url: string
+  model: string
+  prompt: string
+  notify_webhook_on_useful: boolean
+  usefulness_prompt: string
+  interests: string
+  max_context_lines: number
+  max_context_chars: number
+  timeout_seconds: number
+  max_retries: number
+  concurrency: number
+}
+
+export interface OpenAISettingPayload {
+  enabled: boolean
+  api_key?: string
+  base_url: string
+  model: string
+  prompt: string
+  notify_webhook_on_useful: boolean
+  usefulness_prompt: string
+  interests: string
+  max_context_lines: number
+  max_context_chars: number
+  timeout_seconds: number
+  max_retries: number
+  concurrency: number
 }
 
 export interface TaskSetting {

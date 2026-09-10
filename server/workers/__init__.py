@@ -7,6 +7,7 @@
 """Worker task boundary for Huey app and scheduled tasks."""
 
 from .huey_app import huey
+from .analysis_tasks import analyze_leakage
 from .schedule_tasks import (
     create_github_client,
     schedule_github_search,
@@ -16,6 +17,7 @@ from .search_tasks import search, send_mail_notice, send_webhook_notice
 
 __all__ = [
     "huey",
+    "analyze_leakage",
     "search",
     "send_webhook_notice",
     "send_mail_notice",

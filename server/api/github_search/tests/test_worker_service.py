@@ -324,6 +324,80 @@ def test_search_inserts_leakage_and_returns_notification_lists(monkeypatch):
     assert notices["webhook"][0].startswith("[org/repo/secret.py]")
 
 
+def test_search_queues_ai_analysis_when_query_enables_it(monkeypatch):
+    captured = {"inserted": [], "pending": [], "scheduled": []}
+    fake_repo = _fake_repo("sha-1")
+    fake_repos = SimpleNamespace(totalCount=1, get_page=lambda page: [fake_repo])
+    fake_assets = SimpleNamespace(get_affect_assets=lambda code: [])
+
+    monkeypatch.setattr(worker_service.worker_repository, "touch_task", lambda pid, now: None)
+    monkeypatch.setattr(worker_service.github_integration, "create_client", lambda username, password: object())
+    monkeypatch.setattr(worker_service.github_integration, "search_code", lambda client, keyword: fake_repos)
+    monkeypatch.setattr(worker_service.github_integration, "search_rate_limit", lambda client: {"remaining": 42, "limit": 100})
+    monkeypatch.setattr(worker_service.worker_repository, "update_github_rate_remaining", lambda username, remaining: None)
+    monkeypatch.setattr(worker_service.worker_repository, "iter_blacklist", lambda: [])
+    monkeypatch.setattr(worker_service.worker_repository, "result_exists", lambda filters: False)
+    monkeypatch.setattr(worker_service.worker_repository, "insert_result", lambda document: captured["inserted"].append(document))
+    monkeypatch.setattr(worker_service.worker_repository, "update_query_success", lambda tag, page, api_total, now: None)
+    monkeypatch.setattr(worker_service.ai_analysis_service, "notify_webhook_on_useful_enabled", lambda: False)
+    monkeypatch.setattr(
+        worker_service.ai_analysis_service,
+        "mark_pending",
+        lambda leakage_id: captured["pending"].append(leakage_id) or True,
+    )
+
+    worker_service.search_github_code(
+        {"tag": "github-token", "keyword": "ghp_", "analysis_enabled": True},
+        0,
+        {"username": "octocat", "password": "secret"},
+        asset_extractor=fake_assets,
+        retry=lambda *args: None,
+        schedule_analysis=lambda leakage_id: captured["scheduled"].append(leakage_id),
+    )
+
+    assert captured["inserted"][0]["_id"] == "sha-1"
+    assert captured["pending"] == ["sha-1"]
+    assert captured["scheduled"] == ["sha-1"]
+
+
+def test_search_suppresses_webhook_when_ai_useful_gate_is_enabled(monkeypatch):
+    captured = {"inserted": [], "pending": [], "scheduled": []}
+    fake_repo = _fake_repo("sha-1")
+    fake_repos = SimpleNamespace(totalCount=1, get_page=lambda page: [fake_repo])
+    fake_assets = SimpleNamespace(get_affect_assets=lambda code: [])
+
+    monkeypatch.setattr(worker_service.worker_repository, "touch_task", lambda pid, now: None)
+    monkeypatch.setattr(worker_service.github_integration, "create_client", lambda username, password: object())
+    monkeypatch.setattr(worker_service.github_integration, "search_code", lambda client, keyword: fake_repos)
+    monkeypatch.setattr(worker_service.github_integration, "search_rate_limit", lambda client: {"remaining": 42, "limit": 100})
+    monkeypatch.setattr(worker_service.worker_repository, "update_github_rate_remaining", lambda username, remaining: None)
+    monkeypatch.setattr(worker_service.worker_repository, "iter_blacklist", lambda: [])
+    monkeypatch.setattr(worker_service.worker_repository, "result_exists", lambda filters: False)
+    monkeypatch.setattr(worker_service.worker_repository, "insert_result", lambda document: captured["inserted"].append(document))
+    monkeypatch.setattr(worker_service.worker_repository, "update_query_success", lambda tag, page, api_total, now: None)
+    monkeypatch.setattr(worker_service.ai_analysis_service, "notify_webhook_on_useful_enabled", lambda: True)
+    monkeypatch.setattr(
+        worker_service.ai_analysis_service,
+        "mark_pending",
+        lambda leakage_id: captured["pending"].append(leakage_id) or True,
+    )
+
+    notices = worker_service.search_github_code(
+        {"tag": "github-token", "keyword": "ghp_", "analysis_enabled": True},
+        0,
+        {"username": "octocat", "password": "secret"},
+        asset_extractor=fake_assets,
+        retry=lambda *args: None,
+        schedule_analysis=lambda leakage_id: captured["scheduled"].append(leakage_id),
+    )
+
+    assert captured["inserted"][0]["_id"] == "sha-1"
+    assert captured["pending"] == ["sha-1"]
+    assert captured["scheduled"] == ["sha-1"]
+    assert notices["mail"]
+    assert notices["webhook"] == []
+
+
 def test_search_paged_results_insert_multiple_repos_and_mark_query_success(monkeypatch):
     captured = {"pages": [], "rates": [], "inserted": [], "query_success": []}
     fake_repos = SimpleNamespace(

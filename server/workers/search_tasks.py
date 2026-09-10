@@ -8,7 +8,8 @@
 
 from api.github_search import service as worker_service
 from api.notifications import service as notification_service
-from workers.huey_app import huey
+from .analysis_tasks import analyze_leakage
+from .huey_app import huey
 
 
 @huey.task()
@@ -25,6 +26,7 @@ def search(query, page, github_or_account, github_username=None):
         github_or_account,
         github_username,
         retry=retry,
+        schedule_analysis=lambda leakage_id: analyze_leakage.schedule(args=(leakage_id, False)),
     )
     worker_service.dispatch_search_notices(query.get("tag"), notices, send_mail_notice, send_webhook_notice)
 
